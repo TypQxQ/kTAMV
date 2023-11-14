@@ -19,14 +19,6 @@ class kTAMV_cv:
         # TAMV has 2 detectors, one for standard and one for relaxed
         self.createDetectors()
 
-        # Create the WebCamServer
-        # self.webCamServer = Flask(__name__)
-        # self.process = None
-        # q = HelloWorldServer()
-        # q.start_server()
-        # q.run()
-        
-
     def get_average_positions(self, positions):
         avg_positions = {}
         for position in positions:

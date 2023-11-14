@@ -9,13 +9,14 @@ from . import kTAMV_cv
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
 import logging
-from . import ktcc_toolchanger, ktcc_log
 
 # from ..toolhead import ToolHead
 
 class kTAMV:
     def __init__(self, config):
         self.camera_address = config.get('nozzle_cam_url')
+        self.camera_address = config.get('webcam_upload_url')
+        
         self.camera_position = config.getlist('camera_position', ('x','y'), count=2)
         self.camera_position = (float(self.camera_position[0]), float(self.camera_position[1]))
         self.speed = config.getfloat('speed', 50., above=10.)
@@ -34,11 +35,11 @@ class kTAMV:
         self.cv_tools = kTAMV_cv.kTAMV_cv(config)
 
         # Load used objects.
-        self.printer = config.get_printer()
+        self.printer  = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
         # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
         # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
-        self.log :ktcc_log = self.printer.lookup_object('ktcc_log')
+        self.log = self.printer.lookup_object('ktcc_log')
 
         self.gcode.register_command('CV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
@@ -543,4 +544,4 @@ class MjpegStreamReader:
 
 
 def load_config(config):
-    return CVToolheadCalibration(config)
+    return kTAMV(config)
