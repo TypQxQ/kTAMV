@@ -2,9 +2,8 @@ import time, os
 import cv2
 import numpy as np
 import math
-import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
-from . import ktcc_log, ktcc_toolchanger , gcode_macro
+from . import kTAMV_io, ktcc_log, ktcc_toolchanger , gcode_macro
 from . import kTAMV_cv
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
@@ -14,32 +13,32 @@ import logging
 
 class kTAMV:
     def __init__(self, config):
+        # Load config values
         self.camera_address = config.get('nozzle_cam_url')
-        self.camera_address = config.get('webcam_upload_url')
-        
+        self.server_url = config.get('webcam_upload_url')
+        self.save_image = config.getboolean('save_image', False)
         self.camera_position = config.getlist('camera_position', ('x','y'), count=2)
         self.camera_position = (float(self.camera_position[0]), float(self.camera_position[1]))
         self.speed = config.getfloat('speed', 50., above=10.)
-
         self.calib_iterations = config.getint('calib_iterations', 1, minval=1, maxval=25)
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
  
-        # self.printer = config.get_printer()
-        self.config = config 
-
+        # TODO: Change from using the ktcc_log to using the klippy logger
         if not config.has_section('ktcc_log'):
-            raise self.printer.config_error("Klipper Tool Changer addon section not found in config, CVNozzleCalib wont work")
-
-        self.streamer = MjpegStreamReader(self.camera_address)
-
-        self.cv_tools = kTAMV_cv.kTAMV_cv(config)
+            raise self.printer.config_error("Klipper Toolchanger KTCC addon section not found in config, CVNozzleCalib wont work")
 
         # Load used objects.
         self.printer  = config.get_printer()
+        self.config = config 
         self.gcode = self.printer.lookup_object('gcode')
+        self.log = self.printer.lookup_object('ktcc_log')
         # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
         # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
-        self.log = self.printer.lookup_object('ktcc_log')
+
+
+        self.io = kTAMV_io.kTAMV_io(self.log, self.camera_address, self.server_url, self.save_image)
+        self.cv_tools = kTAMV_cv.kTAMV_cv(config, self.io)
+
 
         self.gcode.register_command('CV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
@@ -70,7 +69,12 @@ class kTAMV:
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
         try:
             self.log.always("Running SIMPLE_NOZZLE_POSITION")
-            self.streamer.open_stream()
+            logging.info("Running SIMPLE_NOZZLE_POSITION with logger.info")
+            logging.critical("Running SIMPLE_NOZZLE_POSITION with logger.critical")
+            logging.debug("Running SIMPLE_NOZZLE_POSITION with logger.debug")
+            logging.error("Running SIMPLE_NOZZLE_POSITION with logger.error")
+            logging.warning("Running SIMPLE_NOZZLE_POSITION with logger.warning")   
+            self.io.open_stream()
             position = self._recursively_find_nozzle_position()
             if position:
                 gcmd.respond_info("Found nozzle")
@@ -78,10 +82,10 @@ class kTAMV:
                 gcmd.respond_info("X%.3f Y%.3f, radius %.3f" % (position[0], position[1], position[2]))
             else:
                 gcmd.respond_info("No nozzles found")
-            self.streamer.close_stream()
+            self.io.close_stream()
         except Exception as e:
-            if self.streamer is not None:
-                self.streamer.close_stream()
+            if self.io is not None:
+                self.io.close_stream()
             raise Exception("SIMPLE_NOZZLE_POSITION failed %s" % str(e))
 
             
@@ -95,7 +99,7 @@ class kTAMV:
     #     tool_nozzle_pos = self._recursively_find_nozzle_position()
     #     if tool_nozzle_pos is None:
     #         self.log.trace("Did not find nozzle after initial T%s move to center, aborting" % str(toolindex))   
-    #         self.streamer.close_stream()
+    #         self.io.close_stream()
     #         return
 
     #     pos = (int(tool_nozzle_pos[0]), int(tool_nozzle_pos[1]))
@@ -123,7 +127,7 @@ class kTAMV:
     #     second_t1_pos = self._recursively_find_nozzle_position()
     #     if second_t1_pos is None:
     #         gcmd.respond_info("Tried to use MM offsets X%.4f Y%.4f, but did not find T1 nozzle after move..." % (x_offset_mm, y_offset_mm))
-    #         self.streamer.close_stream()
+    #         self.io.close_stream()
     #         return
 
     #     # TODO: Add early return if resulting virtual offset is not within spec
@@ -142,7 +146,7 @@ class kTAMV:
     #         (t0_nozzle_pos[1]-second_t1_pos[1]) # Calibrated virtual offset between t0 and t1
     #     ))
 
-    #     self.streamer.close_stream()
+    #     self.io.close_stream()
 
     #     self._x_home_current_toolhead()
     #     # Restore state to t0
@@ -154,7 +158,7 @@ class kTAMV:
 
     cmd_CALIB_OFFSET_help = "Calibraties T0 and T1 XY offsets based on the configured center point"
     def cmd_CALIB_OFFSET(self, gcmd):
-        self.streamer.open_stream()
+        self.io.open_stream()
         # Ensure we are using T10 for testing
         self.changeTool(10)
 
@@ -220,7 +224,7 @@ class kTAMV:
         t0_nozzle_pos = self._recursively_find_nozzle_position()
         if t0_nozzle_pos is None:
             gcmd.respond_info("Did not find nozzle after initial T0 move to center, aborting")
-            self.streamer.close_stream()
+            self.io.close_stream()
             return
 
         # X home T0
@@ -234,7 +238,7 @@ class kTAMV:
         t1_nozzle_pos = self._recursively_find_nozzle_position()
         if t1_nozzle_pos is None:
             gcmd.respond_info("Did not find nozzle after initial T1 move to center, aborting")
-            self.streamer.close_stream()
+            self.io.close_stream()
             return
 
         t1_pos = (int(t1_nozzle_pos[0]), int(t1_nozzle_pos[1]))
@@ -262,7 +266,7 @@ class kTAMV:
         second_t1_pos = self._recursively_find_nozzle_position()
         if second_t1_pos is None:
             gcmd.respond_info("Tried to use MM offsets X%.4f Y%.4f, but did not find T1 nozzle after move..." % (x_offset_mm, y_offset_mm))
-            self.streamer.close_stream()
+            self.io.close_stream()
             return
 
         # TODO: Add early return if resulting virtual offset is not within spec
@@ -281,7 +285,7 @@ class kTAMV:
             (t0_nozzle_pos[1]-second_t1_pos[1]) # Calibrated virtual offset between t0 and t1
         ))
 
-        self.streamer.close_stream()
+        self.io.close_stream()
 
         self._x_home_current_toolhead()
         # Restore state to t0
@@ -289,7 +293,7 @@ class kTAMV:
 
     cmd_CALIB_NOZZLE_PX_MM_help = "Calibrates the movement of the active nozzle around the point it started at"
     def cmd_CALIB_NOZZLE_PX_MM(self, gcmd):
-        self.streamer.open_stream()
+        self.io.open_stream()
         skip_center = gcmd.get('SKIP_CENTER', False)
         calib_value = gcmd.get_float('CALIB_VALUE', self.calib_value)
         calib_iterations = gcmd.get_int('CALIB_ITERATIONS', self.calib_iterations)
@@ -342,7 +346,7 @@ class kTAMV:
             Camera rotation %.4f
         """ % (avg_points[self.camera_position][0], avg_points[self.camera_position][1], center_deviation[0], center_deviation[1], px_mm, ang))
 
-        self.streamer.close_stream()
+        self.io.close_stream()
         self.calibrated_center_point = point_center
         self.calibrated_angle = ang
 
@@ -427,7 +431,7 @@ class kTAMV:
 
     def _find_nozzle_positions(self):
         self.log.always("Finding nozzle positions")
-        image, size = self.streamer.get_single_frame()
+        image, size = self.io.get_single_frame()
         if image is None:
             self.log.always("No image found")
             return None
@@ -487,61 +491,6 @@ class kTAMV:
         gcode_position = gcode_move.get_status()['gcode_position']
         # self.log.trace("Gcode position: %s" % str(gcode_position))
         return gcode_position
-
-class MjpegStreamReader:
-    def __init__(self, camera_address):
-        self.camera_address = camera_address
-        self.session = requests.Session()
-
-    def can_read_stream(self, printer):
-        # TODO: Clean this up and return actual errors instead of this...stuff...
-        try:
-            with self.session.get(self.camera_address) as _:
-                return True
-        except InvalidURL as _:
-            raise printer.config_error("Could not read nozzle camera address, got InvalidURL error %s" % (self.camera_address))
-        except ConnectionError as _:
-            raise printer.config_error("Failed to establish connection with nozzle camera %s" % (self.camera_address))
-        except Exception as e:
-            raise printer.config_error("Nozzle camera request failed %s" % str(e))
-
-    def open_stream(self):
-        # TODO: Raise error, stream already running 
-        self.session = requests.Session()
-
-    def get_single_frame(self):
-        if self.session is None: 
-            # TODO: Raise error: stream is not running
-            return None, None
-
-        try:
-            with self.session.get(self.camera_address, stream=True) as stream:
-                if stream.ok:
-                    chunk_size = 1024
-                    bytes_ = b''
-                    for chunk in stream.iter_content(chunk_size=chunk_size):
-                        bytes_ += chunk
-                        a = bytes_.find(b'\xff\xd8')
-                        b = bytes_.find(b'\xff\xd9')
-                        if a != -1 and b != -1:
-                            jpg = bytes_[a:b+2]
-                            # Read the image from the byte array with OpenCV
-                            image = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                            # Save the image dimensions as class variables. TODO Not sure which one is the best way to do it.
-                            # self._cameraHeight, self._cameraWidth, _ = image.shape
-                            # self.cvtools._cameraHeight, self.cvtools._cameraWidth, _ = image.shape
-                            # Return the image
-                            return image, image.shape
-            return None, None
-        except Exception as e:
-            self.log.always("Failed to get single frame from stream %s" % str(e))
-            # raise Exception("Failed to get single frame from stream %s" % str(e))
-
-    def close_stream(self):
-        if self.session is not None:
-            self.session.close()
-            self.session = None
-
 
 def load_config(config):
     return kTAMV(config)

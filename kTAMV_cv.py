@@ -1,18 +1,18 @@
-import time, os, copy, io, datetime
+import math, copy
 import cv2
 import numpy as np
-import math
-import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
-from PIL import Image, ImageDraw, ImageFont, ImageFile
-
+# from PIL import Image, ImageDraw, ImageFont, ImageFile
+from . import kTAMV_io
 
 class kTAMV_cv:
-    def __init__(self, config):
+    def __init__(self, config, io : kTAMV_io):
         # Load used objects. Mainly to log stuff.
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
         self.log = self.printer.load_object(config, 'ktcc_log')
+        
+        self.io : kTAMV_io.kTAMV_io = io
  
         # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
         self.__algorithm = None
@@ -118,8 +118,8 @@ class kTAMV_cv:
             r = np.around(point.size/2) # Radius of the detected nozzle
             data.append((pos[0], pos[1], r))
 
-        self.save_image(nozzleDetectFrame, keypoints)
-        
+        # self.save_image(nozzleDetectFrame, keypoints)
+        self.io.output_image(nozzleDetectFrame, keypoints)
         
         return data
 
@@ -135,52 +135,7 @@ class kTAMV_cv:
     def angle(self,  s1, s2):
         return math.degrees(math.atan((s2-s1)/(1+(s2*s1))))
 
-
-    def save_image(self, image, keypoints):
-        image_with_keypoints = cv2.drawKeypoints(image, keypoints, np.array([]), (0,0,255), cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-        home_dir = os.path.expanduser('~')
-        _ = cv2.imwrite(home_dir + "/frame.jpg", image_with_keypoints)
-        # self.log.trace("Saved image: " + str(success))
-        
-        date_now = datetime.datetime.strftime(datetime.datetime.now(), "%a %b %d %H:%M:%S %Y")        
-        # self.textOnFrame(image_with_keypoints, date_now)
-        
-        # Convert image to JPEG format
-        _, jpeg_image = cv2.imencode('.jpg', image_with_keypoints)
-        
-        try:
-            # Send image to server
-            _, jpeg_image = cv2.imencode('.jpg', image)
-            url = 'http://192.168.1.192:8082/upload'
-            files = {'image.jpeg': jpeg_image.tobytes()}
-            response = requests.post(url, files=files)
-            if response.status_code == 200:
-                self.log.trace('Image sent successfully')
-            else:
-                self.log.always('Error sending image: %s' % response.text)
-        except Exception as e:
-            self.log.always("Failed to send image to server: %s" % str(e))  
-        return
-
-    def textOnFrame(self, image, text):
-        usedFrame = copy.deepcopy(image)
-        
-        # Create a draw object
-        draw = ImageDraw.Draw(usedFrame)
-
-        # Choose a font
-        font = ImageFont.truetype("arial.ttf", 32)
-        
-        # Draw the date on the image
-        draw.text((10, 10), text, font=font, fill=(255, 255, 255))
-
-        return usedFrame
-
-
-
-# TAMV ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
-
-
+# ----------------- TAMV Nozzle Detection -----------------
 
     def createDetectors(self):
         # Standard Parameters
@@ -359,7 +314,7 @@ class kTAMV_cv:
         return(keypoints, nozzleDetectFrame)
 
 
-    ##### Utilities
+    ##### TAMV Utilities
     # adjust image gamma
     def adjust_gamma(self, image, gamma=1.2):
         # build a lookup table mapping the pixel values [0, 255] to
