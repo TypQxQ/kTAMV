@@ -24,7 +24,7 @@ class kTAMV:
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
 
         # self.printer = config.get_printer()
-        self.config = config
+        self.config = config 
 
         if not config.has_section('ktcc_log'):
             raise self.printer.config_error("Klipper Tool Changer addon section not found in config, CVNozzleCalib wont work")
