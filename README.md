@@ -1,3 +1,11 @@
+# kTAMV - Klipper Tool Alignment (using) Machine Vision
+kTAMV builds on TAMV, https://github.com/HaythamB/TAMV and on CVToolheadCalibration that is also a adaptation of TAMV but for IDEX printers.
+
+This is a non working development as of 14/11/2023.
+
+
+TODO: Add more indo based on below and TAMV.
+
 # Automatic toolhead offset calibration using computer vision for Klipper
 
 CVToolheadCalibration is an extension for IDEX printers running klipper that adds functionality to calibrate toolhead offset using a USB microscope/webcam. With this extension you can easily calibrate the toolhead offsets. 
