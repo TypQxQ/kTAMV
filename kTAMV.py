@@ -22,7 +22,7 @@ class kTAMV:
 
         self.calib_iterations = config.getint('calib_iterations', 1, minval=1, maxval=25)
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
-
+ 
         # self.printer = config.get_printer()
         self.config = config 
 

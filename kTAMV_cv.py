@@ -13,7 +13,7 @@ class kTAMV_cv:
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
         self.log = self.printer.load_object(config, 'ktcc_log')
-
+ 
         # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
         self.__algorithm = None
         # TAMV has 2 detectors, one for standard and one for relaxed
