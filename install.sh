@@ -1,14 +1,16 @@
 #!/bin/bash
 
 KLIPPER_PATH="${HOME}/klipper"
-EXTENSION_PATH="${HOME}/klipper_cv_toolhead_calibration_for_ktcc"
+EXTENSION_PATH="${HOME}/kTAMV"
 
 PKGLIST="python-opencv"
 
 link_extension()
 {
     echo "Linking extension to Klipper..."
-    ln -sf "${EXTENSION_PATH}/cv_toolhead_calibration.py" "${KLIPPER_PATH}/klippy/extras/cv_toolhead_calibration.py"
+    ln -sf "${EXTENSION_PATH}/kTAM.py" "${KLIPPER_PATH}/klippy/extras/kTAM.py"
+    ln -sf "${EXTENSION_PATH}/kTAMV_cv.py" "${KLIPPER_PATH}/klippy/extras/kTAMV_cv.py"
+
 }
 
 restart_klipper()

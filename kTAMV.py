@@ -5,16 +5,15 @@ import math
 import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 from . import ktcc_log, ktcc_toolchanger , gcode_macro
-from . import cvTools
+from . import kTAMV_cv
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
 import logging
-from .ktcc import ktcc_parse_restore_type
 from . import ktcc_toolchanger, ktcc_log
 
 # from ..toolhead import ToolHead
 
-class CVToolheadCalibration:
+class kTAMV:
     def __init__(self, config):
         self.camera_address = config.get('nozzle_cam_url')
         self.camera_position = config.getlist('camera_position', ('x','y'), count=2)
@@ -32,7 +31,7 @@ class CVToolheadCalibration:
 
         self.streamer = MjpegStreamReader(self.camera_address)
 
-        self.cv_tools = cvTools.CVTools(config)
+        self.cv_tools = kTAMV_cv.kTAMV_cv(config)
 
         # Load used objects.
         self.printer = config.get_printer()

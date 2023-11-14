@@ -7,7 +7,7 @@ from requests.exceptions import InvalidURL, HTTPError, RequestException, Connect
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
 
-class CVTools:
+class kTAMV_cv:
     def __init__(self, config):
         # Load used objects. Mainly to log stuff.
         self.printer = config.get_printer()
