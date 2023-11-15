@@ -4,7 +4,7 @@ import numpy as np
 import math
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 from . import kTAMV_io, ktcc_log, ktcc_toolchanger , gcode_macro
-from . import kTAMV_cv
+from . import kTAMV_cv, kTAMV_DetectionManager
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
 import logging
@@ -38,7 +38,7 @@ class kTAMV:
 
         self.io = kTAMV_io.kTAMV_io(self.log, self.camera_address, self.server_url, self.save_image)
         self.cv_tools = kTAMV_cv.kTAMV_cv(config, self.io)
-
+        self.DetectionManager = kTAMV_DetectionManager.kTAMV_DetectionManager(config, self.io)
 
         self.gcode.register_command('CV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
@@ -47,7 +47,13 @@ class kTAMV:
         self.gcode.register_command('CV_CALIB_OFFSET', self.cmd_CALIB_OFFSET, desc=self.cmd_CALIB_OFFSET_help)
         self.gcode.register_command('CV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
         
-    cmd_SET_CENTER_help = "Tests if the CVNozzleCalib extension works"
+    cmd_SIMPLE_TEST_help = "Tests if the CVNozzleCalib extension works"
+    def cmd_SIMPLE_TEST(self, gcmd):
+        # I don't think it's usefull because if OpenCV is not functioning then the init would error out.
+        gcmd.respond_info("CVNozzleCalib extension works. OpenCV version is %s and the nozzle cam url is configured to be %s" % (cv2.__version__, self.camera_address))
+        gcmd.respond_info("The current toolhead position is: %s" % str(self.DetectionManager.burstNozzleDetection()))
+
+    cmd_SET_CENTER_help = "Centers the camera to the current toolhead position"
     def cmd_SET_CENTER(self, gcmd):
         self._set_camera_center_to_current_position()
         
@@ -55,11 +61,6 @@ class kTAMV:
         gcode_position = self._get_gcode_position()
         self.camera_position = (float(gcode_position.x), float(gcode_position.y))
         self.log.trace("Set camera position to: %s" % str(self.camera_position))
-
-    cmd_SIMPLE_TEST_help = "Tests if the CVNozzleCalib extension works"
-    def cmd_SIMPLE_TEST(self, gcmd):
-        # I don't think it's usefull because if OpenCV is not functioning then the init would error out.
-        gcmd.respond_info("CVNozzleCalib extension works. OpenCV version is %s and the nozzle cam url is configured to be %s" % (cv2.__version__, self.camera_address))
 
     cmd_center_toolhead_help = "Positions the current toolhead at the camera nozzle position"
     def cmd_center_toolhead(self, gcmd):
