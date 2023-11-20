@@ -41,20 +41,18 @@ class kTAMV:
         self.cv_tools = kTAMV_cv.kTAMV_cv(config, self.io)
         self.DetectionManager = kTAMV_DetectionManager.kTAMV_DetectionManager(config, self.io)
 
-        self.gcode.register_command('CV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
-        self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
+        self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
+        self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
         self.gcode.register_command('CV_CALIB_NOZZLE_PX_MM', self.cmd_CALIB_NOZZLE_PX_MM, desc=self.cmd_CALIB_NOZZLE_PX_MM_help)
         self.gcode.register_command('CV_CALIB_OFFSET', self.cmd_CALIB_OFFSET, desc=self.cmd_CALIB_OFFSET_help)
         self.gcode.register_command('CV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
         
-    cmd_SIMPLE_TEST_help = "Tests if the CVNozzleCalib extension works"
+    cmd_SIMPLE_TEST_help = "Gets all requests from the server and prints them to the console"
     def cmd_SIMPLE_TEST(self, gcmd):
-        response = json.loads(requests.get(self.server_url + "/getReqest?request_id=529711").text)
+        response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
         logging.debug("Response: %s" % str(response))
         gcmd.respond_info("Response: %s" % str(response))
-        # gcmd.respond_info("CVNozzleCalib extension works. OpenCV version is %s and the nozzle cam url is configured to be %s" % (cv2.__version__, self.camera_address))
-        # gcmd.respond_info("The current toolhead position is: %s" % str(self.DetectionManager.burstNozzleDetection()))
 
     cmd_SET_CENTER_help = "Centers the camera to the current toolhead position"
     def cmd_SET_CENTER(self, gcmd):
