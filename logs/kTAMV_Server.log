@@ -1,0 +1,43 @@
+Mon, 20 Nov 2023 16:49:59 INFO     [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:8085
+ * Running on http://192.168.1.192:8085
+Mon, 20 Nov 2023 16:49:59 INFO     [33mPress CTRL+C to quit[0m
+Mon, 20 Nov 2023 16:49:59 DEBUG    *** calling DetectionManager.__init__
+Mon, 20 Nov 2023 16:49:59 INFO     192.168.1.192 - - [20/Nov/2023 16:49:59] "GET /burstNozzleDetection HTTP/1.1" 200 -
+Mon, 20 Nov 2023 16:49:59 DEBUG    *** exiting DetectionManager.__init__
+Mon, 20 Nov 2023 16:49:59 DEBUG    Starting new HTTP connection (1): 192.168.1.204:80
+Mon, 20 Nov 2023 16:49:59 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:00 DEBUG    Nozzle detected 1 circles with algorithm: 5
+Mon, 20 Nov 2023 16:50:00 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:00 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:00 DEBUG    Nozzle detected 1 circles with algorithm: 5
+Mon, 20 Nov 2023 16:50:00 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:00 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:00 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:00 DEBUG    _burstNozzleDetection at: [379. 255.]
+Mon, 20 Nov 2023 16:50:00 DEBUG    Position found does not match last position. Last position: (0, 0), current position: [379. 255.]
+Mon, 20 Nov 2023 16:50:00 DEBUG    Difference: X379.000 Y255.000
+Mon, 20 Nov 2023 16:50:00 DEBUG    Starting new HTTP connection (1): 192.168.1.204:80
+Mon, 20 Nov 2023 16:50:00 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:00 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:00 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:00 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:01 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:01 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:01 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:01 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:01 DEBUG    _burstNozzleDetection at: [304. 238.]
+Mon, 20 Nov 2023 16:50:01 DEBUG    Position found does not match last position. Last position: [379. 255.], current position: [304. 238.]
+Mon, 20 Nov 2023 16:50:01 DEBUG    Difference: X75.000 Y17.000
+Mon, 20 Nov 2023 16:50:01 DEBUG    Starting new HTTP connection (1): 192.168.1.204:80
+Mon, 20 Nov 2023 16:50:01 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:01 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:01 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:01 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:01 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:01 DEBUG    Resetting dropped connection: 192.168.1.204
+Mon, 20 Nov 2023 16:50:02 DEBUG    http://192.168.1.204:80 "GET /webcam2/stream HTTP/1.1" 200 None
+Mon, 20 Nov 2023 16:50:02 DEBUG    Nozzle detected 1 circles with algorithm: 3
+Mon, 20 Nov 2023 16:50:02 DEBUG    _burstNozzleDetection at: [304. 238.]
+Mon, 20 Nov 2023 16:50:02 DEBUG    recursively_find_nozzle_position found 1 matches and returning

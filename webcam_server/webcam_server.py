@@ -4,6 +4,7 @@ from flask import Flask, request, send_file
 from mjpeg.server import MJPEGResponse
 from flask import send_from_directory, send_file
 from PIL import Image, ImageDraw, ImageFont, ImageFile
+import argparse
 
 
 # create a Flask app
@@ -72,5 +73,14 @@ def image():
 
 # run the app
 if __name__ == "__main__":
-    app.run(host='0.0.0.0', port=8082)
+
+    # Create an argument parser
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', type=int, default=8085, help='Port number')
+
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    # Run the app with the specified port
+    app.run(host='0.0.0.0', port=args.port)
     last_frame = None

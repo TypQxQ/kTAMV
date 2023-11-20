@@ -70,11 +70,7 @@ class kTAMV:
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
         try:
             self.log.always("Running SIMPLE_NOZZLE_POSITION")
-            logging.info("Running SIMPLE_NOZZLE_POSITION with logger.info")
-            logging.critical("Running SIMPLE_NOZZLE_POSITION with logger.critical")
             logging.debug("Running SIMPLE_NOZZLE_POSITION with logger.debug")
-            logging.error("Running SIMPLE_NOZZLE_POSITION with logger.error")
-            logging.warning("Running SIMPLE_NOZZLE_POSITION with logger.warning")   
             self.io.open_stream()
             position = self._recursively_find_nozzle_position()
             if position:
