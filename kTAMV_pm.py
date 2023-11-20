@@ -40,13 +40,16 @@ class kTAMV_pm:
         self.ensureHomed()
 
         try:
-            if(protected):
-                # self.complexMoveRelative(moveSpeed=moveSpeed, position={'X':X, 'Y': Y, 'Z': Z})
-                pass
-            else:
+            if(!protected):
                 self.toolhead.move([X, Y, Z], moveSpeed)
                 self.toolhead.wait_moves()
-
+            else:
+                self.toolhead.move([X, 0, 0], moveSpeed)
+                self.toolhead.wait_moves()
+                self.toolhead.move([0, Y, 0], moveSpeed)
+                self.toolhead.wait_moves()
+                self.toolhead.move([0, 0, Z], moveSpeed)
+                self.toolhead.wait_moves()
         except Exception as e:
             logging.exception('Error: kTAMV_pm.moveRelative cannot run: ' + str(e))
             raise e
@@ -54,3 +57,22 @@ class kTAMV_pm:
         # send exiting to log
         logging.debug('*** exiting kTAMV_pm.moveRelative')
 
+    def complexMoveRelative(self, X=0, Y=0, Z=0, moveSpeed=__defaultSpeed):
+        moveRelative(X, Y, Z, moveSpeed, True)
+
+    # Using G1 command to move the toolhead to the position instead of using the toolhead.move() function because G1 will use the tool's offset.
+    def moveAbsolute(self, pos_array, moveSpeed=__defaultSpeed):
+        gcode = "G1 "
+        for i in range(len(pos_array)):
+            if i == 0:
+                gcode += "X%s " % (pos_array[i])
+            elif i == 1:
+                gcode += "Y%s " % (pos_array[i])
+            elif i == 2:
+                gcode += "Z%s " % (pos_array[i])
+        gcode += "F%s " % (moveSpeed)
+        
+        # self.log.trace("G1 command: %s" % gcode)
+        self.gcode.run_script_from_command(gcode)
+        toolhead = self.printer.lookup_object('toolhead')
+        toolhead.wait_moves()
