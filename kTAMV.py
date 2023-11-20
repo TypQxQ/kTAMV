@@ -2,7 +2,7 @@ import time, os
 import numpy as np
 import math
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
-from . import kTAMV_io, ktcc_log, ktcc_toolchanger , gcode_macro
+from . import kTAMV_io, kTAMV_pm
 from . import kTAMV_cv, kTAMV_DetectionManager
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 import requests, json
@@ -36,10 +36,13 @@ class kTAMV:
         # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
         # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
 
+        # Register backwords compatibility commands
+        self.__currentPosition = {'X': None, 'Y': None, 'Z': None}
 
         self.io = kTAMV_io.kTAMV_io(self.log, self.camera_address, self.server_url, self.save_image)
         self.cv_tools = kTAMV_cv.kTAMV_cv(config, self.io)
         self.DetectionManager = kTAMV_DetectionManager.kTAMV_DetectionManager(config, self.io)
+        self.pm = kTAMV_pm.kTAMV_pm(config)
 
         self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
@@ -505,6 +508,33 @@ class kTAMV:
         gcode_position = gcode_move.get_status()['gcode_position']
         # self.log.trace("Gcode position: %s" % str(gcode_position))
         return gcode_position
+
+    def _set_calibrate_px_mm(self):
+        self.olduv = self.uv
+        self.space_coordinates = []
+        self.camera_coordinates = []
+
+        # Setup camera calibration move coordinates
+        self.calibrationCoordinates = [ [0,-0.5], [0.294,-0.405], [0.476,-0.155], [0.476,0.155], [0.294,0.405], [0,0.5], [-0.294,0.405], [-0.476,0.155], [-0.476,-0.155], [-0.294,-0.405] ]
+        self.guessPosition  = [1,1]
+
+        _current_position = self._get_gcode_position()
+        _nozzle_possition = self._recursively_find_nozzle_position()
+
+        self.__currentPosition['X'] = _current_position[0]
+        self.__currentPosition['Y'] = _current_position[1]
+        self.__currentPosition['Z'] = _current_position[2]
+        
+        self.uv = [_nozzle_possition[0], _nozzle_possition[1]]
+        
+        self.space_coordinates.append((self.__currentPosition['X'], self.__currentPosition['Y']))
+        self.camera_coordinates.append((self.uv[0], self.uv[1]))
+        
+        params = {'position':{'X': self.offsetX, 'Y': self.offsetY}}
+        self.pm.moveRelative(params)
+        self.moveRelativeSignal.emit(params)
+
+
 
 def load_config(config):
     return kTAMV(config)
