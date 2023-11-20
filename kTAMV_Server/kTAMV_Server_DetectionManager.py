@@ -76,7 +76,7 @@ class kTAMV_DetectionManager:
         # Open the stream
         self.__io.open_stream()
         while(detectionCount < min_matches):
-            frame, size = self.__io.get_single_frame()
+            frame = self.__io.get_single_frame()
             uv, processed_frame = self.nozzleDetection(frame)
             if frame is not None:
                 put_frame_func(processed_frame)

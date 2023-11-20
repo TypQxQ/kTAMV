@@ -1,11 +1,11 @@
 import time, os
-import cv2
 import numpy as np
 import math
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 from . import kTAMV_io, ktcc_log, ktcc_toolchanger , gcode_macro
 from . import kTAMV_cv, kTAMV_DetectionManager
 from PIL import Image, ImageDraw, ImageFont, ImageFile
+import requests, json
 
 import logging
 
@@ -15,7 +15,7 @@ class kTAMV:
     def __init__(self, config):
         # Load config values
         self.camera_address = config.get('nozzle_cam_url')
-        self.server_url = config.get('webcam_upload_url')
+        self.server_url = config.get('server_url')
         self.save_image = config.getboolean('save_image', False)
         self.camera_position = config.getlist('camera_position', ('x','y'), count=2)
         self.camera_position = (float(self.camera_position[0]), float(self.camera_position[1]))
@@ -32,6 +32,7 @@ class kTAMV:
         self.config = config 
         self.gcode = self.printer.lookup_object('gcode')
         self.log = self.printer.lookup_object('ktcc_log')
+        self.reactor = self.printer.get_reactor()
         # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
         # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
 
@@ -42,16 +43,18 @@ class kTAMV:
 
         self.gcode.register_command('CV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('CV_CENTER_TOOLHEAD', self.cmd_center_toolhead, desc=self.cmd_center_toolhead_help)
-        self.gcode.register_command('CV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
+        self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
         self.gcode.register_command('CV_CALIB_NOZZLE_PX_MM', self.cmd_CALIB_NOZZLE_PX_MM, desc=self.cmd_CALIB_NOZZLE_PX_MM_help)
         self.gcode.register_command('CV_CALIB_OFFSET', self.cmd_CALIB_OFFSET, desc=self.cmd_CALIB_OFFSET_help)
         self.gcode.register_command('CV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
         
     cmd_SIMPLE_TEST_help = "Tests if the CVNozzleCalib extension works"
     def cmd_SIMPLE_TEST(self, gcmd):
-        # I don't think it's usefull because if OpenCV is not functioning then the init would error out.
-        gcmd.respond_info("CVNozzleCalib extension works. OpenCV version is %s and the nozzle cam url is configured to be %s" % (cv2.__version__, self.camera_address))
-        gcmd.respond_info("The current toolhead position is: %s" % str(self.DetectionManager.burstNozzleDetection()))
+        response = json.loads(requests.get(self.server_url + "/getReqest?request_id=529711").text)
+        logging.debug("Response: %s" % str(response))
+        gcmd.respond_info("Response: %s" % str(response))
+        # gcmd.respond_info("CVNozzleCalib extension works. OpenCV version is %s and the nozzle cam url is configured to be %s" % (cv2.__version__, self.camera_address))
+        # gcmd.respond_info("The current toolhead position is: %s" % str(self.DetectionManager.burstNozzleDetection()))
 
     cmd_SET_CENTER_help = "Centers the camera to the current toolhead position"
     def cmd_SET_CENTER(self, gcmd):
@@ -68,21 +71,37 @@ class kTAMV:
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
+        self._get_nozzle_position(gcmd)
+
+    def _get_nozzle_position(self, gcmd):
+        _request_id = None
         try:
-            self.log.always("Running SIMPLE_NOZZLE_POSITION")
-            logging.debug("Running SIMPLE_NOZZLE_POSITION with logger.debug")
-            self.io.open_stream()
-            position = self._recursively_find_nozzle_position()
-            if position:
-                gcmd.respond_info("Found nozzle")
-                # position = position[0]
-                gcmd.respond_info("X%.3f Y%.3f, radius %.3f" % (position[0], position[1], position[2]))
-            else:
-                gcmd.respond_info("No nozzles found")
-            self.io.close_stream()
+            _response = json.loads(requests.get(self.server_url + "/burstNozzleDetection").text)
+            if not (_response['statuscode'] == 202 or _response['statuscode'] == 200):
+                gcmd.respond_info("Failed to run burstNozzleDetection, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
+                return
+            
+            # Success, got request id
+            _request_id = _response['request_id']
+            
+            start_time = time.time()
+            while True:
+                #  Check if the request is done
+                _response = json.loads(requests.get(f"{self.server_url}/getReqest?request_id={_request_id}").text)
+                if _response['statuscode'] == 200:
+                    gcmd.respond_info("Found nozzle at position: %s after %2f seconds" % (str(_response['position']), float(_response['runtime'])))
+                    return _response
+                
+                # Check if one minute has elapsed
+                elapsed_time = time.time() - start_time
+                if elapsed_time >= 60:
+                    gcmd.respond_info("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION timed out after 60 seconds")
+                    return None
+
+                # Pause for 100ms to avoid busy loop
+                _ = self.reactor.pause(self.reactor.monotonic() + 0.200)
+            
         except Exception as e:
-            if self.io is not None:
-                self.io.close_stream()
             raise Exception("SIMPLE_NOZZLE_POSITION failed %s" % str(e))
 
             

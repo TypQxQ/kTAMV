@@ -14,7 +14,7 @@ import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("logs"):
     os.makedirs("logs")
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='logs/kTAMV_Server.log', filemode='w')
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='logs/kTAMV_Server.log', filemode='w', encoding='utf-8')
 
 # create a Flask app
 app = Flask(__name__)
@@ -79,6 +79,25 @@ def put_frame(frame):
 def getAllReqests():
     return jsonify(request_result)
 
+@app.route('/')
+def default():
+    file_path = 'logs/kTAMV_Server.log'
+    content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
+    try:
+        with open(file_path, 'r', encoding='utf-8') as file:
+            content += file.read()
+            
+            
+            # Replace line breaks with HTML line breaks
+            content = content.replace('\n', '<br>')
+            # Wrap the content with HTML tags
+            html_content = f'<html><head><meta charset="utf-8"></head><body>{content}</body></html>'
+            
+            return html_content
+    except FileNotFoundError:
+        return content + "Log file not found"
+
+
 @app.route('/getReqest', methods=['GET', 'POST'])
 def getReqest():
     # Get the request id from the URL
@@ -116,7 +135,7 @@ def burstNozzleDetection():
     thread = threading.Thread(target=do_work)
     thread.start()
 
-    return jsonify(request_id=request_id)
+    return jsonify(request_result[request_id])
 
 def drawOnFrame(usedFrame, text):
     # usedFrame = copy.deepcopy(image)
