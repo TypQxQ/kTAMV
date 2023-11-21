@@ -19,16 +19,6 @@ logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(m
 # create a Flask app
 app = Flask(__name__)
 
-class kTAMV_RequestResult(dict):
-    def __init__(self, request_id, position = None, runtime = None, statuscode = None, statusmessage = None):
-        dict.__init__(self, {
-            "request_id": request_id,
-            "position": position,
-            "runtime": runtime,
-            "statuscode": statuscode,
-            "statusmessage": statusmessage
-        })
-
 # Define a global variable to store the processed frame
 processed_frame = None
 # Define a global variable to store the camera path (e.g. /dev/video0)
@@ -36,6 +26,20 @@ camera_url = None
 camera_url = 'http://192.168.1.204/webcam2/stream'
 #Define a global variable to store a key-value pair of the request id and the result
 request_result = dict()
+_frame_width = 0
+_frame_height = 0
+
+class kTAMV_RequestResult(dict):
+    def __init__(self, request_id, position = None, runtime = None, statuscode = None, statusmessage = None, frame_width = _frame_width, frame_height = _frame_height):
+        dict.__init__(self, {
+            "request_id": request_id,
+            "position": position,
+            "runtime": runtime,
+            "statuscode": statuscode,
+            "statusmessage": statusmessage,
+            "frame_width": frame_width,
+            "frame_height": frame_height
+        })
 
 @app.route('/set_camera_url', methods=['POST'])
 def set_camera_url(self):
@@ -69,8 +73,10 @@ def put_frame(frame):
     temp_frame.save(byteio, format='JPEG')
     byteio.seek(0)
     # Write the frame to the global variable, so init it as global and then write to it
-    global processed_frame
+    global processed_frame, _frame_width, _frame_height
     processed_frame = byteio.read()
+    _frame_width, _frame_height = temp_frame.size
+    temp_frame.close()
     
     # Alternative that is not used but one row for every step if not need to add text.
     # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
@@ -83,6 +89,7 @@ def getAllReqests():
 def default():
     file_path = 'logs/kTAMV_Server.log'
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
+    content += "Frame width: " + str(_frame_width) + ", Frame height: " + str(_frame_height) + "<br>"
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content += file.read()
@@ -130,7 +137,7 @@ def burstNozzleDetection():
         if position is None:
             request_result_object = kTAMV_RequestResult(request_id, None, time.time() - start_time, 404, "No nozzle found")
         else:
-            request_result_object = kTAMV_RequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK")
+            request_result_object = kTAMV_RequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK", _frame_width, _frame_height)
 
         global request_result
         request_result[request_id] = request_result_object

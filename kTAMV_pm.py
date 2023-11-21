@@ -102,7 +102,7 @@ class kTAMV_pm:
         toolhead.wait_moves()
 
     def moveAbsolute(self, X=None, Y=None, Z=None, moveSpeed=__defaultSpeed):
-        self.moveAbsolute([X, Y, Z], moveSpeed)
+        self.moveAbsoluteToArray([X, Y, Z], moveSpeed)
         
     def get_gcode_position(self):
         gcode_move = self.printer.lookup_object('gcode_move')
