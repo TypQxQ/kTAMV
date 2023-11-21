@@ -2,7 +2,7 @@ import time, os
 import numpy as np
 import math
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
-from . import kTAMV_io, kTAMV_pm
+from . import kTAMV_io, kTAMV_pm, kTAMV_utl as utl
 from . import kTAMV_cv, kTAMV_DetectionManager
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 import requests, json, statistics
@@ -24,6 +24,8 @@ class kTAMV:
  
         # Initialize variables
         self.mpp = None
+        self.__frame_width = None
+        self.__frame_height = None
 
         # TODO: Change from using the ktcc_log to using the klippy logger
         if not config.has_section('ktcc_log'):
@@ -477,7 +479,7 @@ class kTAMV:
 
     def _find_nozzle_positions(self):
         self.log.always("Finding nozzle positions")
-        image, size = self.io.get_single_frame()
+        image, [self.__frame_height, self.__frame_width] = self.io.get_single_frame()
         if image is None:
             self.log.always("No image found")
             return None
@@ -549,7 +551,7 @@ class kTAMV:
 
         # Setup camera calibration move coordinates
         self.calibrationCoordinates = [ [0,-0.5], [0.294,-0.405], [0.476,-0.155], [0.476,0.155], [0.294,0.405], [0,0.5], [-0.294,0.405], [-0.476,0.155], [-0.476,-0.155], [-0.294,-0.405] ]
-        self.guessPosition  = [1,1]
+        guessPosition  = [1,1]
 
         try:
             self.pm.ensureHomed()
@@ -591,67 +593,23 @@ class kTAMV:
                 self.pm.moveRelative(X = -self.calibrationCoordinates[i][0], Y = -self.calibrationCoordinates[i][1])
                 
 
-            # Calculate the average mm per pixel and the standard deviation
-            mpss_std_dev = statistics.stdev(mpps)
-            self.mpp = np.around(np.mean(mpps),3)
+            # Calculate the average mm per pixel                
+            mpp = utl.get_average_mpp(mpps, gcmd)
+            if mpp is None:
+                gcmd.respond_info("Failed to get average mm per pixel")
+                return
             
-            # If standard deviation is higher than 05% of the average, try to exclude the highest and lowest values and recalculate
-            __mpp_msg = ("Standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2)))) + " %."
-            if mpss_std_dev / self.mpp > 0.05:
-                gcmd.respond_info("Too high " + __mpp_msg + " Trying to exclude deviant values and recalculate")
-
-                # Exclude the highest value if it deviates more than 20% from the mean value and recalculate. This is the most likely to be a deviant value
-                if max(mpps) > self.mpp + (self.mpp * 0.20):
-                    mpps.remove(max(mpps))
-                
-                # Calculate the average mm per pixel and the standard deviation
-                mpss_std_dev = statistics.stdev(mpps)
-                self.mpp = np.around(np.mean(mpps),3)
-
-                # Exclude the lowest value if it deviates more than 20% from the mean value and recalculate
-                if min(mpps) < self.mpp - (self.mpp * 0.20):
-                    mpps.remove(min(mpps))
-                    
-                # Calculate the average mm per pixel and the standard deviation
-                mpss_std_dev = statistics.stdev(mpps)
-                self.mpp = np.around(np.mean(mpps),3)
-
-                gcmd.respond_info("Recalculated Standard deviation without deviant max and min of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2))) + " %.")
-
-                # Exclude the values that are more than 2 standard deviations from the mean and recalculate
-                for i in reversed(range(len(list(mpps)))):
-                    if mpps[i] > self.mpp + (mpss_std_dev * 2) or mpps[i] < self.mpp - (mpss_std_dev * 2):
-                        mpps.remove(mpps[i])
-
-                # Calculate the average mm per pixel and the standard deviation
-                mpss_std_dev = statistics.stdev(mpps)
-                self.mpp = np.around(np.mean(mpps),3)
-
-                # Exclude any other value that deviates more than 25% from mean value and recalculate
-                for i in reversed(range(len(mpps))):
-                    if mpps[i] > self.mpp + (self.mpp * 0.5) or mpps[i] < self.mpp - (self.mpp * 0.5):
-                        logging.log("Removing value %s from list" % str(mpps[i]))
-                        mpps.remove(mpps[i])
-                    
-                # Calculate the average mm per pixel and the standard deviation
-                mpss_std_dev = statistics.stdev(mpps)
-                self.mpp = np.around(np.mean(mpps),3)
-
-                gcmd.respond_info("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2))) + " %.")
-                gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
-
-                if mpss_std_dev / self.mpp > 0.2 or len(mpps) < 5:
-                    gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
-                    return
-                else:
-                    gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
-                    logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
-                    return
-            else:
-                gcmd.respond_info(__mpp_msg)
+            # Calculate transformation matrix
+            self.transform_input = [(self.space_coordinates[i], utl.normalize_coords(camera, self.__frame_width, self.__frame_height)) for i, camera in enumerate(self.camera_coordinates)]
+            self.transformMatrix, self.transform_residual = utl.least_square_mapping(self.transform_input)
             
-            logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
-            gcmd.respond_info("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
+            # define camera center in machine coordinate space
+            self.newCenter = self.transformMatrix.T @ np.array([0, 0, 0, 0, 0, 1])
+            guessPosition[0]= np.around(self.newCenter[0],3)
+            guessPosition[1]= np.around(self.newCenter[1],3)
+            logging.info('Calibration positional guess: ' + str(guessPosition))
+
+
             logging.debug('*** exiting kTAMV.getDistance')
 
         except Exception as e:
