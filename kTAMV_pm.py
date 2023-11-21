@@ -56,27 +56,6 @@ class kTAMV_pm:
         # send exiting to log
         logging.debug('*** exiting kTAMV_pm.moveRelative')
 
-        # self.ensureHomed()
-        # E = 0
-
-        # try:
-        #     if not (protected):
-        #         self.toolhead.move([X, Y, Z, E], moveSpeed)
-        #         self.toolhead.wait_moves()
-        #     else:
-        #         self.toolhead.move([X, 0, 0, E], moveSpeed)
-        #         self.toolhead.wait_moves()
-        #         self.toolhead.move([0, Y, 0, E], moveSpeed)
-        #         self.toolhead.wait_moves()
-        #         self.toolhead.move([0, 0, Z, E], moveSpeed)
-        #         self.toolhead.wait_moves()
-        # except Exception as e:
-        #     logging.exception('Error: kTAMV_pm.moveRelative cannot run: ' + str(e))
-        #     raise e
-            
-        # # send exiting to log
-        # logging.debug('*** exiting kTAMV_pm.moveRelative')
-
     def moveRelativeToArray(self, pos_array, moveSpeed=__defaultSpeed, protected=False):
         self.moveRelative(pos_array[0], pos_array[1], pos_array[2], moveSpeed, protected)
 
@@ -109,3 +88,9 @@ class kTAMV_pm:
         gcode_position = gcode_move.get_status()['gcode_position']
         
         return [gcode_position.x, gcode_position.y, gcode_position.z]
+
+    def get_raw_position(self):
+        gcode_move = self.printer.lookup_object('gcode_move')
+        raw_position = gcode_move.get_status()['position']
+        
+        return [raw_position.x, raw_position.y, raw_position.z]

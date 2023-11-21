@@ -51,20 +51,22 @@ class kTAMV:
         # self.gcode.register_command('KTAMV_CALIB_NOZZLE_OFFSET', self.cmd_CALIB_NOZZLE_OFFSET, desc=self.cmd_CALIB_NOZZLE_OFFSET_help)
         self.gcode.register_command('KTAMV_FIND_NOZZLE_CENTER', self.cmd_FIND_NOZZLE_CENTER, desc=self.cmd_FIND_NOZZLE_CENTER_help)
         self.gcode.register_command('KTAMV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
+        self.gcode.register_command('KTAMV_GET_OFFSET', self.cmd_GET_OFFSET, desc=self.cmd_GET_OFFSET_help)
 
     cmd_SET_CENTER_help = "Set current toolhead position as the center position to get offset from"
     def cmd_SET_CENTER(self, gcmd):
-        self.cp = self.pm.get_gcode_position()
+        self.cp = self.pm.get_raw_position()
         self.cp = (float(self.cp[0]), float(self.cp[1]))
+        gcmd.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
         
-    cmd_GET_OFFSET_help = "Get offset from the current position to the center position"
+    cmd_GET_OFFSET_help = "Get offset from the current position to the configured center position"
     def cmd_GET_OFFSET(self, gcmd):
         if self.cp is None:
-            gcmd.respond_info("No center position set, use KTAMV_SET_CENTER to set it")
+            gcmd.respond_info("No center position set, use KTAMV_SET_CENTER to set it to the position you want to get offset from")
             return
-        _pos = self.pm.get_gcode_position()
+        _pos = self.pm.get_raw_position()
         _offset = (float(_pos[0]) - self.cp[0], float(_pos[1]) - self.cp[1])
-        gcmd.respond_info("Offset from center is: %s" % str(_offset))
+        gcmd.respond_info("Offset from center is X:%3f Y:%3f" % _offset[0], _offset[1])
 
     cmd_FIND_NOZZLE_CENTER_help = "Finds the center of the nozzle and moves it to the center of the camera, offset can be set from here"
     def cmd_FIND_NOZZLE_CENTER(self, gcmd):
