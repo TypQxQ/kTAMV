@@ -42,6 +42,7 @@ class kTAMV_DetectionManager:
         start_time = time.time()  # Get the current time
         last_pos = (0,0)
         pos_matches = 0
+        pos = None
 
         while time.time() - start_time < timeout:
             positions = self._burstNozzleDetection(put_frame_func)

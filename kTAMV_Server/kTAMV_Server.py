@@ -127,8 +127,12 @@ def burstNozzleDetection():
 
         position = detection_manager.recursively_find_nozzle_position(put_frame, request_id, 1)
 
+        if position is None:
+            request_result_object = kTAMV_RequestResult(request_id, None, time.time() - start_time, 404, "No nozzle found")
+        else:
+            request_result_object = kTAMV_RequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK")
+
         global request_result
-        request_result_object = kTAMV_RequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK")
         request_result[request_id] = request_result_object
 
     # thread = threading.Thread(target=do_work, kwargs={'value': request.args.get('value', 20)})

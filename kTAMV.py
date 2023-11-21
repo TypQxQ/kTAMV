@@ -5,8 +5,7 @@ from requests.exceptions import InvalidURL, HTTPError, RequestException, Connect
 from . import kTAMV_io, kTAMV_pm
 from . import kTAMV_cv, kTAMV_DetectionManager
 from PIL import Image, ImageDraw, ImageFont, ImageFile
-import requests, json
-
+import requests, json, statistics
 import logging
 
 # from ..toolhead import ToolHead
@@ -23,26 +22,33 @@ class kTAMV:
         self.calib_iterations = config.getint('calib_iterations', 1, minval=1, maxval=25)
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
  
+        # Initialize variables
+        self.mpp = None
+
         # TODO: Change from using the ktcc_log to using the klippy logger
         if not config.has_section('ktcc_log'):
             raise self.printer.config_error("Klipper Toolchanger KTCC addon section not found in config, CVNozzleCalib wont work")
 
         # Load used objects.
-        self.printer  = config.get_printer()
         self.config = config 
+        self.printer  = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
-        self.log = self.printer.lookup_object('ktcc_log')
-        self.reactor = self.printer.get_reactor()
         # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
         # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
 
         # Register backwords compatibility commands
         self.__currentPosition = {'X': None, 'Y': None, 'Z': None}
 
+        self.printer.register_event_handler("klippy:ready", self.handle_ready)
+
+    def handle_ready(self):
+        self.reactor = self.printer.get_reactor()
+
+        self.log = self.printer.lookup_object('ktcc_log')
         self.io = kTAMV_io.kTAMV_io(self.log, self.camera_address, self.server_url, self.save_image)
-        self.cv_tools = kTAMV_cv.kTAMV_cv(config, self.io)
-        self.DetectionManager = kTAMV_DetectionManager.kTAMV_DetectionManager(config, self.io)
-        self.pm = kTAMV_pm.kTAMV_pm(config)
+        self.cv_tools = kTAMV_cv.kTAMV_cv(self.config, self.io)
+        self.DetectionManager = kTAMV_DetectionManager.kTAMV_DetectionManager(self.config, self.io)
+        self.pm = kTAMV_pm.kTAMV_pm(self.config)
 
         self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
@@ -50,12 +56,14 @@ class kTAMV:
         self.gcode.register_command('CV_CALIB_NOZZLE_PX_MM', self.cmd_CALIB_NOZZLE_PX_MM, desc=self.cmd_CALIB_NOZZLE_PX_MM_help)
         self.gcode.register_command('CV_CALIB_OFFSET', self.cmd_CALIB_OFFSET, desc=self.cmd_CALIB_OFFSET_help)
         self.gcode.register_command('CV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
+
         
     cmd_SIMPLE_TEST_help = "Gets all requests from the server and prints them to the console"
     def cmd_SIMPLE_TEST(self, gcmd):
-        response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
-        logging.debug("Response: %s" % str(response))
-        gcmd.respond_info("Response: %s" % str(response))
+        self._calibrate_px_mm(gcmd)
+        # response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
+        # logging.debug("Response: %s" % str(response))
+        # gcmd.respond_info("Response: %s" % str(response))
 
     cmd_SET_CENTER_help = "Centers the camera to the current toolhead position"
     def cmd_SET_CENTER(self, gcmd):
@@ -72,15 +80,29 @@ class kTAMV:
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
-        self._get_nozzle_position(gcmd)
+        try:
+            canread = self.io.can_read_stream(self.printer)
+            logging.debug("Can read stream: %s" % str(canread))
+            gcmd.respond_info("Can read stream: %s" % str(canread))
+            if not canread:
+                return None
+
+            _response = self._get_nozzle_position(gcmd)
+            if _response is None:
+                return
+            else:
+                gcmd.respond_info("Found nozzle at position: %s after %.2f seconds" % (str(_response['position']), float(_response['runtime'])))
+        except Exception as e:
+            gcmd.respond_info("Failed to run burstNozzleDetection, got error: %s" % str(e))
+            return
 
     def _get_nozzle_position(self, gcmd):
         _request_id = None
         try:
-            _response = json.loads(requests.get(self.server_url + "/burstNozzleDetection").text)
+            _response = json.loads(requests.get(self.server_url + "/burstNozzleDetection", timeout=2).text)
             if not (_response['statuscode'] == 202 or _response['statuscode'] == 200):
                 gcmd.respond_info("Failed to run burstNozzleDetection, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
-                return
+                raise Exception("Failed to run burstNozzleDetection, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
             
             # Success, got request id
             _request_id = _response['request_id']
@@ -88,22 +110,29 @@ class kTAMV:
             start_time = time.time()
             while True:
                 #  Check if the request is done
-                _response = json.loads(requests.get(f"{self.server_url}/getReqest?request_id={_request_id}").text)
-                if _response['statuscode'] == 200:
-                    gcmd.respond_info("Found nozzle at position: %s after %2f seconds" % (str(_response['position']), float(_response['runtime'])))
-                    return _response
-                
-                # Check if one minute has elapsed
-                elapsed_time = time.time() - start_time
-                if elapsed_time >= 60:
-                    gcmd.respond_info("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION timed out after 60 seconds")
-                    return None
+                _response = json.loads(requests.get(f"{self.server_url}/getReqest?request_id={_request_id}", timeout=2).text)
+                if _response['statuscode'] == 202:
+                    # Check if one minute has elapsed
+                    elapsed_time = time.time() - start_time
+                    if elapsed_time >= 60:
+                        raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION timed out after 60 seconds")
 
-                # Pause for 100ms to avoid busy loop
-                _ = self.reactor.pause(self.reactor.monotonic() + 0.200)
-            
+                    # Pause for 100ms to avoid busy loop
+                    _ = self.reactor.pause(self.reactor.monotonic() + 0.100)
+                    continue
+                # If nozzles were found, return the position
+                elif _response['statuscode'] == 200:
+                    return _response
+                # If nozzles were not found, raise exception
+                elif _response['statuscode'] == 404:
+                    raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION failed, got statuscode %s: %s. Try Cleaning the nozzle or adjust Z height. Verify with the KTAMV_SIMPLE_NOZZLE_POSITION command." % ( str(_response['statuscode']), str(_response['statusmessage'])))
+                else:
+                    raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION failed, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
+
         except Exception as e:
-            raise Exception("SIMPLE_NOZZLE_POSITION failed %s" % str(e))
+            gcmd.respond_info("_get_nozzle_position failed %s" % str(e))
+            raise e
+            return None
 
             
 
@@ -461,7 +490,9 @@ class kTAMV:
         CV_TIME_OUT = 20 #5 # If no nozzle found in this time, timeout the function
         CV_MIN_MATCHES = 3 # Minimum amount of matches to confirm toolhead position after a move
         CV_XY_TOLERANCE = 1 # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
-
+        
+        _ = self.io.can_read_stream(self.printer)
+        
         last_pos = (0,0)
         pos_matches = 0
         while time.time() - start_time < CV_TIME_OUT:
@@ -509,32 +540,151 @@ class kTAMV:
         # self.log.trace("Gcode position: %s" % str(gcode_position))
         return gcode_position
 
-    def _set_calibrate_px_mm(self):
-        self.olduv = self.uv
+    def _calibrate_px_mm(self, gcmd):
+        logging.debug('*** calling kTAMV.getDistance')
+        self.olduv = self.uv = [0,0]
         self.space_coordinates = []
         self.camera_coordinates = []
+        mpps = []
 
         # Setup camera calibration move coordinates
         self.calibrationCoordinates = [ [0,-0.5], [0.294,-0.405], [0.476,-0.155], [0.476,0.155], [0.294,0.405], [0,0.5], [-0.294,0.405], [-0.476,0.155], [-0.476,-0.155], [-0.294,-0.405] ]
         self.guessPosition  = [1,1]
 
-        _current_position = self._get_gcode_position()
-        _nozzle_possition = self._recursively_find_nozzle_position()
+        try:
+            self.pm.ensureHomed()
+            _current_position = self.pm.get_gcode_position()
+            gcmd.respond_info("Current position: %s" % str(_current_position))
+            _request_result = self._get_nozzle_position(gcmd)
 
-        self.__currentPosition['X'] = _current_position[0]
-        self.__currentPosition['Y'] = _current_position[1]
-        self.__currentPosition['Z'] = _current_position[2]
-        
-        self.uv = [_nozzle_possition[0], _nozzle_possition[1]]
-        
-        self.space_coordinates.append((self.__currentPosition['X'], self.__currentPosition['Y']))
-        self.camera_coordinates.append((self.uv[0], self.uv[1]))
-        
-        params = {'position':{'X': self.offsetX, 'Y': self.offsetY}}
-        self.pm.moveRelative(params)
-        self.moveRelativeSignal.emit(params)
+            # _nozzle_possition = _request_result['position'] 
+            # self.uv = [_nozzle_possition[0], _nozzle_possition[1]]
+            # Save the position of the nozzle in the center
+            self.uv = _request_result['position'] 
+            self.olduv = self.uv # Save the camera position of the nozzle in the center
+            camera_center_coordinates = self.uv
+            self.space_coordinates.append((_current_position[0], _current_position[1]))
+            self.camera_coordinates.append((self.uv[0], self.uv[1]))
+            
+            # self.pm.moveRelative(X =self.calibrationCoordinates[0][0], Y = self.calibrationCoordinates[0][1])
 
+            for i in range(len(self.calibrationCoordinates)):
+                gcmd.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
+                logging.debug("Calibrating camera step %s of %s at location: %s" % (str(i), str(len(self.calibrationCoordinates)), str(self.calibrationCoordinates[i])))
 
+                # Move to calibration location
+                self.pm.moveRelative(X =self.calibrationCoordinates[i][0], Y = self.calibrationCoordinates[i][1])
+                # Get the nozzle position
+                _request_result = self._get_nozzle_position(gcmd)
+                self.uv = _request_result['position'] 
+
+                # Save the position of the nozzle on camera at the current location
+                self.space_coordinates.append((_current_position[0], _current_position[1]))
+                self.camera_coordinates.append((self.uv[0], self.uv[1]))
+
+                # Calculate mm per pixel and save it to a list
+                mpp = self.getMMperPixel(self.calibrationCoordinates[i], camera_center_coordinates, self.uv)
+                mpps.append(mpp)
+                gcmd.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
+
+                # Move back to center
+                self.pm.moveRelative(X = -self.calibrationCoordinates[i][0], Y = -self.calibrationCoordinates[i][1])
+                
+
+            # Calculate the average mm per pixel and the standard deviation
+            mpss_std_dev = statistics.stdev(mpps)
+            self.mpp = np.around(np.mean(mpps),3)
+            
+            # If standard deviation is higher than 05% of the average, try to exclude the highest and lowest values and recalculate
+            __mpp_msg = ("Standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2)))) + " %."
+            if mpss_std_dev / self.mpp > 0.05:
+                gcmd.respond_info("Too high " + __mpp_msg + " Trying to exclude deviant values and recalculate")
+
+                # Exclude the highest value if it deviates more than 20% from the mean value and recalculate. This is the most likely to be a deviant value
+                if max(mpps) > self.mpp + (self.mpp * 0.20):
+                    mpps.remove(max(mpps))
+                
+                # Calculate the average mm per pixel and the standard deviation
+                mpss_std_dev = statistics.stdev(mpps)
+                self.mpp = np.around(np.mean(mpps),3)
+
+                # Exclude the lowest value if it deviates more than 20% from the mean value and recalculate
+                if min(mpps) < self.mpp - (self.mpp * 0.20):
+                    mpps.remove(min(mpps))
+                    
+                # Calculate the average mm per pixel and the standard deviation
+                mpss_std_dev = statistics.stdev(mpps)
+                self.mpp = np.around(np.mean(mpps),3)
+
+                gcmd.respond_info("Recalculated Standard deviation without deviant max and min of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2))) + " %.")
+
+                # Exclude the values that are more than 2 standard deviations from the mean and recalculate
+                for i in reversed(range(len(list(mpps)))):
+                    if mpps[i] > self.mpp + (mpss_std_dev * 2) or mpps[i] < self.mpp - (mpss_std_dev * 2):
+                        mpps.remove(mpps[i])
+
+                # Calculate the average mm per pixel and the standard deviation
+                mpss_std_dev = statistics.stdev(mpps)
+                self.mpp = np.around(np.mean(mpps),3)
+
+                # Exclude any other value that deviates more than 25% from mean value and recalculate
+                for i in reversed(range(len(mpps))):
+                    if mpps[i] > self.mpp + (self.mpp * 0.5) or mpps[i] < self.mpp - (self.mpp * 0.5):
+                        logging.log("Removing value %s from list" % str(mpps[i]))
+                        mpps.remove(mpps[i])
+                    
+                # Calculate the average mm per pixel and the standard deviation
+                mpss_std_dev = statistics.stdev(mpps)
+                self.mpp = np.around(np.mean(mpps),3)
+
+                gcmd.respond_info("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpss_std_dev), str(self.mpp), str(np.around((mpss_std_dev / self.mpp)*100,2))) + " %.")
+                gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
+
+                if mpss_std_dev / self.mpp > 0.2 or len(mpps) < 5:
+                    gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
+                    return
+                else:
+                    gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
+                    logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
+                    return
+            else:
+                gcmd.respond_info(__mpp_msg)
+            
+            logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
+            gcmd.respond_info("Average mm per pixel: %s with a standard deviation of %s" % (str(self.mpp), str(mpss_std_dev)))
+            logging.debug('*** exiting kTAMV.getDistance')
+
+        except Exception as e:
+            logging.exception('Error: kTAMV.getDistance cannot run: ' + str(e))
+            gcmd.respond_info("_calibrate_px_mm failed %s" % str(e))
+            raise e
+            return None
+
+    def getMMperPixel(self, distance_traveled = [], from_camera_point = [], to_camera_point = []):
+        logging.debug('*** calling kTAMV.getMMperPixel')
+        logging.debug("distance_traveled: %s" % str(distance_traveled))
+        logging.debug("from_camera_point: %s" % str(from_camera_point))
+        logging.debug("to_camera_point: %s" % str(to_camera_point))
+        total_distance_traveled = abs(distance_traveled[0]) + abs(distance_traveled[1])
+        logging.debug("total_distance_traveled: %s" % str(total_distance_traveled))
+        mpp = np.around(total_distance_traveled /self.getDistance(from_camera_point[0],from_camera_point[1],to_camera_point[0],to_camera_point[1]),3)
+        logging.debug("mm per pixel: %s" % str(mpp))
+        logging.debug('*** exiting kTAMV.getMMperPixel')
+        return mpp
+        # return np.around(0.5/self.getDistance(self.olduv[0],self.olduv[1],self.uv[0],self.uv[1]),3)
+
+    def getDistance(self, x1, y1, x0, y0):
+        logging.debug('*** calling kTAMV.getDistance')
+        x1_float = float(x1)
+        x0_float = float(x0)
+        y1_float = float(y1)
+        y0_float = float(y0)
+        x_dist = (x1_float - x0_float) ** 2
+        y_dist = (y1_float - y0_float) ** 2
+        retVal = np.sqrt((x_dist + y_dist))
+        returnVal = np.around(retVal,3)
+        logging.debug('*** exiting kTAMV.getDistance')
+        return(returnVal)
 
 def load_config(config):
     return kTAMV(config)

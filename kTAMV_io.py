@@ -14,20 +14,31 @@ class kTAMV_io:
         self.camera_address = camera_address
         self.server_url = server_url
         self.save_image = save_image
-        self.session = requests.Session()
+        self.session = None
         
 
     def can_read_stream(self, printer):
         # TODO: Clean this up and return actual errors instead of this...stuff...
+        logging.info("Checking if nozzle camera is available: %s" % self.camera_address)
         try:
-            with self.session.get(self.camera_address) as _:
+            self.open_stream()
+            # with self.session.get(self.camera_address, timeout=2) as _:
+            with requests.get(self.camera_address, stream=True, timeout=2) as _:
+                logging.info("Nozzle camera is available")
+                self.close_stream()
                 return True
         except InvalidURL as _:
+            logging.info("Could not read nozzle camera address, got InvalidURL error %s" % (self.camera_address))
             raise printer.config_error("Could not read nozzle camera address, got InvalidURL error %s" % (self.camera_address))
         except ConnectionError as _:
+            logging.info("Failed to establish connection with nozzle camera %s" % (self.camera_address))
             raise printer.config_error("Failed to establish connection with nozzle camera %s" % (self.camera_address))
         except Exception as e:
+            logging.info("Nozzle camera request failed %s" % str(e))
             raise printer.config_error("Nozzle camera request failed %s" % str(e))
+        finally:
+            self.close_stream()
+        logging.info("Checked if nozzle camera is available")
 
     def open_stream(self):
         # TODO: Raise error, stream already running 
@@ -39,7 +50,7 @@ class kTAMV_io:
             return None, None
 
         try:
-            with self.session.get(self.camera_address, stream=True) as stream:
+            with self.session.get(self.camera_address, stream=True, timeout=5) as stream:
                 if stream.ok:
                     chunk_size = 1024
                     bytes_ = b''
