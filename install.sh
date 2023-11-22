@@ -1,7 +1,12 @@
 #!/bin/bash
 
+CURRENT_DIR=$(dirname "$0")
 KLIPPER_PATH="${HOME}/klipper"
-EXTENSION_PATH="${HOME}/kTAMV"
+EXTENSION_PATH="${CURRENT_DIR}/extension"
+SERVER_PATH="${CURRENT_DIR}/server"
+
+
+
 
 PKGLIST="python-opencv"
 

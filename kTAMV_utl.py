@@ -49,11 +49,11 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
     # Calculate the average mm per pixel and the standard deviation
     mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
     
-    __mpp_msg = ("Standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
+    __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
 
     # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
     if mpps_std_dev / mpp > 0.1:
-        gcmd.respond_info("Too high " + __mpp_msg + " Trying to exclude deviant values and recalculate")
+        gcmd.respond_info(__mpp_msg + "\nTrying to exclude deviant values and recalculate")
         
         # ----------------- 1st recalculation -----------------
         # Exclude the highest value if it deviates more than 20% from the mean value and recalculate. This is the most likely to be a deviant value
@@ -77,7 +77,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
         # Calculate the average mm per pixel and the standard deviation
         mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
 
-        gcmd.respond_info("Recalculated Standard deviation without deviant max and min of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2))) + " %.")
+        gcmd.respond.info("Recalculated std. dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
 
         # ----------------- 3rd recalculation -----------------
         # Exclude the values that are more than 2 standard deviations from the mean and recalculate

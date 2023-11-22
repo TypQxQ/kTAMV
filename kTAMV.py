@@ -137,7 +137,7 @@ class kTAMV:
             _xy = self.pm.get_gcode_position()
 
             for i in range(len(self.calibrationCoordinates)):
-                self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
+                # self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
 
                 # # Move to calibration location and get the nozzle position
                 _rr, _xy = self.moveRelative_getNozzlePosition(self.calibrationCoordinates[i][0], self.calibrationCoordinates[i][1], gcmd)
@@ -177,12 +177,11 @@ class kTAMV:
                     mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
                     # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                     self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                    self.gcode.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
+                    self.gcode.respond_info("Calibrated camera step %s of %s: mm/pixel found: %s" % (str(i+1), str(len(self.calibrationCoordinates)), str(mpp)))
 
             # Check that we have at least 75% of the calibration points
             if (len(self.mm_per_pixels) < (len(self.calibrationCoordinates) * 0.75)):
                 raise self.gcode.error("More than 25% of the calibration points failed, aborting")
-                return
 
             # Calculate the average mm per pixel
             mpp = self._get_average_mpp_from_lists(gcmd)                
@@ -219,6 +218,7 @@ class kTAMV:
         logging.debug('*** calling kTAMV._calibrate_Tool')
         _not_found_retries = 0
         _olduv = None
+        _pixel_offsets = [None,None]
 
         try:
             self.pm.ensureHomed()
@@ -276,9 +276,22 @@ class kTAMV:
 
                 # Check if we're not aligned to the center
                 if(_offsets[0] != 0.0 or _offsets[1] != 0.0):
+                    ##############################
+                    # Ensure the next move is within the frame
+                    ##############################
+                    # Convert the offsets to pixels
+                    _pixel_offsets[0] = _offsets[0] / self.mpp
+                    _pixel_offsets[1] = _offsets[1] / self.mpp
+                    
+                    # If the offset added to the current position is outside the frame size, abort
+                    if(_pixel_offsets[0] + _uv[0] > _frame_width or _pixel_offsets[1] + _uv[1] > _frame_height or _pixel_offsets[0] + _uv[0] < 0 or _pixel_offsets[1] + _uv[1] < 0):
+                        raise self.gcode.error("Calibration failed, offset would move the nozzle outside the frame. This is most likely caused by a bad mm per pixel calibration")
+                    
+                    ##############################
+                    # Move the toolhead to the new position
+                    ##############################
                     _olduv = _uv
                     logging.debug('Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 '.format(_offsets[0],_offsets[1]))
-                    # self.gcode.respond_info('Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 '.format(_offsets[0],_offsets[1]))
                     self.pm.moveRelative(X = _offsets[0], Y = _offsets[1], moveSpeed=1000)
                     continue
                 # finally, we're aligned to the center
