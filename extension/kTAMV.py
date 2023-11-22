@@ -8,9 +8,7 @@ class kTAMV:
         self.camera_address = config.get('nozzle_cam_url')
         self.server_url = config.get('server_url')
         self.save_image = config.getboolean('save_image', False)
-        self.camera_position = config.getlist('camera_position', ('x','y'), count=2)
-        self.camera_position = (float(self.camera_position[0]), float(self.camera_position[1]))
-        self.speed = config.getfloat('speed', 50., above=10.)
+        self.speed = config.getfloat('move_speed', 50., above=10.)
         self.calib_iterations = config.getint('calib_iterations', 1, minval=1, maxval=25)
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
  
@@ -66,15 +64,6 @@ class kTAMV:
         # response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
         # logging.debug("Response: %s" % str(response))
         # self.gcode.respond_info("Response: %s" % str(response))
-
-    def _set_camera_center_to_current_position(self):
-        gcode_position = self._get_gcode_position()
-        self.camera_position = (float(gcode_position.x), float(gcode_position.y))
-        self.log.trace("Set camera position to: %s" % str(self.camera_position))
-
-    cmd_center_toolhead_help = "Positions the current toolhead at the camera nozzle position"
-    def cmd_center_toolhead(self, gcmd):
-        self._center_toolhead()
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):

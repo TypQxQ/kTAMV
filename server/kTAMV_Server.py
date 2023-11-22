@@ -1,8 +1,7 @@
 # import the Flask module, the MJPEGResponse class, and the os module
-import datetime, io, copy, time, random, os, cv2, numpy as np, threading
+import datetime, io, time, random, os, numpy as np, threading
 from flask import jsonify
 from flask import Flask, request, send_file
-from mjpeg.server import MJPEGResponse
 from flask import send_from_directory, send_file
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 import argparse
@@ -12,9 +11,9 @@ import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 
 # Create logs folder if it doesn't exist and configure logging
-if not os.path.exists("logs"):
-    os.makedirs("logs")
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='logs/kTAMV_Server.log', filemode='w', encoding='utf-8')
+if not os.path.exists("../logs"):
+    os.makedirs("../logs")
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='../logs/kTAMV_Server.log', filemode='w', encoding='utf-8')
 
 # create a Flask app
 app = Flask(__name__)

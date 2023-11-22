@@ -1,0 +1,4 @@
+[kTAMV]
+nozzle_cam_url: http://127.0.0.1/webcam/stream
+server_url: http://127.0.0.1:8085
+move_speed: 3000
