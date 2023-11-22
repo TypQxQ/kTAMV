@@ -7,5 +7,6 @@ __pycache__/
 logs/
 *.log
 old_code/
-__pycache__/
 server/__pycache__/
+server/.venv_c3/
+.venv_c3/
