@@ -2,7 +2,7 @@ import numpy as np
 from . import kTAMV_utl as utl
 import logging
 
-class kTAMV:
+class ktamv:
     def __init__(self, config):
         # Load config values
         self.camera_address = config.get('nozzle_cam_url')
@@ -355,4 +355,4 @@ class kTAMV:
         return(returnVal)
 
 def load_config(config):
-    return kTAMV(config)
+    return ktamv(config)

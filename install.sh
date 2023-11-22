@@ -151,8 +151,12 @@ install_or_update_python_env()
     log_info "Updating PIP if needed..."
     "${KTAMV_ENV}"/bin/python -m pip install --upgrade pip
 
+    # Update setuptools if needed
+    log_info "Updating setuptools if needed..."
+    "${KTAMV_ENV}"/bin/pip3 install -q --upgrade pip setuptools wheel
+
     # Finally, ensure our plugin requirements are installed and updated.
-    log_important "Installing or updating required python libs..."
+    log_important "Installing or updating required python libs to kTAMV..."
     log_important "Especially OpenCV can take up to a couple of hours because it needs compiling."
     "${KTAMV_ENV}"/bin/pip3 install -q -r "${KTAMV_REPO_DIR}"/server/requirements.txt
     log_info "Python libs installed."
@@ -170,8 +174,7 @@ install_or_update_klipper_python_env()
     "${KLIPPER_ENV}"/bin/python -m pip install --upgrade pip
 
     # Finally, ensure our plugin requirements are installed and updated.
-    log_important "Installing or updating required python libs..."
-    log_important "Especially OpenCV can take up to a couple of hours because it needs compiling."
+    log_important "Installing or updating required python libs to Klipper enviroment..."
     "${KLIPPER_ENV}"/bin/pip3 install -q -r "${KTAMV_REPO_DIR}"/requirements.txt
     log_info "Python libs installed to Klipper enviroment."
 }
@@ -191,7 +194,6 @@ check_for_ktamv()
         log_blank
         log_info "Stopping install process."
         exit 0
-        fi
     fi
 }
 
@@ -284,7 +286,7 @@ install_update_manager() {
             echo "" >> "${file}"
             while read -r line; do
                 echo -e "${line}" >> "${file}"
-            done < "${SRCDIR}/moonraker_update.txt"
+            done < "${KTAMV_REPO_DIR}/moonraker_update.txt"
             echo "" >> "${file}"
             restart=1
         else
@@ -313,7 +315,7 @@ install_klipper_config() {
             echo "" >> "${file}"
             while read -r line; do
                 echo -e "${line}" >> "${file}"
-            done < "${SRCDIR}/klipper.txt"
+            done < "${KTAMV_REPO_DIR}/klipper.txt"
             echo "" >> "${file}"
             restart=1
         else
@@ -328,6 +330,23 @@ install_klipper_config() {
     fi
 }
 
+prompt_yn() {
+    while true; do
+        read -n1 -p "
+$@ (y/n)? " yn
+        case "${yn}" in
+            Y|y)
+                echo "y" 
+                break;;
+            N|n)
+                echo "n" 
+                break;;
+            *)
+                ;;
+        esac
+    done
+}
+
 
 log_blank
 log_blank
@@ -339,7 +358,26 @@ log_blank
 log_blank
 log_important "kTAMV is used to align your printer's toolheads using machine vision."
 log_blank
+log_info "Usage: $0 [-k <klipper_home_dir>] [-c <klipper_config_dir>] [-j <klipper_enviroment_dir>] [-m <moonraker_home_dir>]"
 log_blank
+log_blank
+log_important "This script will take very long to run (up to 2 hours)."
+log_important "This is because it will install OpenCV, which needs to be compiled."
+log_blank
+
+log_important "${KTAMV_REPO_DIR}/moonraker_update.txt"
+
+yn=$(prompt_yn "Are you sure you want to proceed with installation now?")
+echo
+case $yn in
+    y)
+        ;;
+    n)
+        log_info -e "You can run this script again later to install kTAMV."
+        log_blank
+    exit 0
+        ;;
+esac
 
 while getopts "k:c:m:ids" arg; do
     case $arg in
@@ -350,14 +388,12 @@ while getopts "k:c:m:ids" arg; do
     esac
 done
 
-
-
 # Make sure we aren't running as root
 verify_ready
 
 # Before we do anything, make sure our required system packages are installed.
 # These are required for other actions in this script, so it must be done first.
-install_or_update_system_dependencies
+# install_or_update_system_dependencies
 
 # Check that kTAMV isn't found.
 check_for_ktamv
@@ -369,20 +405,20 @@ check_klipper
 verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
-install_or_update_python_env
+# install_or_update_python_env
 install_or_update_klipper_python_env
 
 # Link the extension to Klipper
 link_extension
-
-# Restart Klipper
-restart_klipper
 
 # Install the update manager to Moonraker
 install_update_manager
 
 # Install the configuration to Klipper
 install_klipper_config
+
+# Restart Klipper
+restart_klipper
 
 log_blank
 log_blank
