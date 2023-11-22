@@ -9,7 +9,6 @@ link_extension()
 {
     echo "Linking extension to Klipper..."
     ln -sf "${EXTENSION_PATH}/kTAMV.py" "${KLIPPER_PATH}/klippy/extras/kTAMV.py"
-    ln -sf "${EXTENSION_PATH}/kTAMV_io.py" "${KLIPPER_PATH}/klippy/extras/kTAMV_io.py"
     ln -sf "${EXTENSION_PATH}/kTAMV_pm.py" "${KLIPPER_PATH}/klippy/extras/kTAMV_pm.py"
     ln -sf "${EXTENSION_PATH}/kTAMV_utl.py" "${KLIPPER_PATH}/klippy/extras/kTAMV_utl.py"
 }

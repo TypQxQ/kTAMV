@@ -50,8 +50,7 @@ class kTAMV_pm:
                 self.moveAbsolute(_new_position[0], _new_position[1], _new_position[2], moveSpeed)
                 self.toolhead.wait_moves()
         except Exception as e:
-            logging.exception('Error: kTAMV_pm.moveRelative cannot run: ' + str(e))
-            raise e
+            raise e.with_traceback(e.__traceback__)
             
         # send exiting to log
         logging.debug('*** exiting kTAMV_pm.moveRelative')

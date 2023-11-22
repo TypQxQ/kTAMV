@@ -3,43 +3,43 @@ import math, copy, statistics, requests, json, time
 import numpy as np
 import logging
 
-def get_nozzle_position(server_url, gcmd, reactor):
+def get_nozzle_position(server_url, reactor):
+    ##############################
+    # Get nozzle position
+    ##############################
+    logging.debug("*** calling kTAMV_utl.get_nozzle_position")
     _request_id = None
-    try:
-        _response = json.loads(requests.get(server_url + "/burstNozzleDetection", timeout=2).text)
-        if not (_response['statuscode'] == 202 or _response['statuscode'] == 200):
-            gcmd.respond_info("Failed to run burstNozzleDetection, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
-            raise Exception("Failed to run burstNozzleDetection, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
-        
-        # Success, got request id
-        _request_id = _response['request_id']
-        
-        start_time = time.time()
-        while True:
-            #  Check if the request is done
-            _response = json.loads(requests.get(f"{server_url}/getReqest?request_id={_request_id}", timeout=2).text)
-            if _response['statuscode'] == 202:
-                # Check if one minute has elapsed
-                elapsed_time = time.time() - start_time
-                if elapsed_time >= 60:
-                    raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION timed out after 60 seconds")
 
-                # Pause for 100ms to avoid busy loop
-                _ = reactor.pause(reactor.monotonic() + 0.100)
-                continue
-            # If nozzles were found, return the position
-            elif _response['statuscode'] == 200:
-                return _response
-            # If nozzles were not found, raise exception
-            elif _response['statuscode'] == 404:
-                raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION failed, got statuscode %s: %s. Try Cleaning the nozzle or adjust Z height. Verify with the KTAMV_SIMPLE_NOZZLE_POSITION command." % ( str(_response['statuscode']), str(_response['statusmessage'])))
-            else:
-                raise Exception("Nozzle detection kTAMV_SIMPLE_NOZZLE_POSITION failed, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
+    _response = json.loads(requests.get(server_url + "/burstNozzleDetection", timeout=2).text)
+    if not (_response['statuscode'] == 202 or _response['statuscode'] == 200):
+        raise Exception("When starting to look for nozzle, server sent statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
+    
+    # Success, got response
+    _request_id = _response['request_id']
+    
+    start_time = time.time()
+    while True:
+        #  Check if the request is done
+        _response = json.loads(requests.get(f"{server_url}/getReqest?request_id={_request_id}", timeout=2).text)
+        if _response['statuscode'] == 202:
+            # Check if one minute has elapsed
+            elapsed_time = time.time() - start_time
+            if elapsed_time >= 60:
+                raise Exception("Nozzle detection timed out after 60 seconds, Server still looking for nozzle.")
 
-    except Exception as e:
-        gcmd.respond_info("_get_nozzle_position failed %s" % str(e))
-        # raise e
-        return None
+            # Pause for 100ms to avoid busy loop
+            _ = reactor.pause(reactor.monotonic() + 0.100)
+            continue
+        # If nozzles were found, return the position
+        elif _response['statuscode'] == 200:
+            logging.debug("*** exiting kTAMV_utl.get_nozzle_position")
+            return _response
+        # If nozzles were not found, raise exception
+        elif _response['statuscode'] == 404:
+            raise Exception("Server did not find nozzle, found, got statuscode %s: %s. Try Cleaning the nozzle or adjust Z height. Verify with the KTAMV_SIMPLE_NOZZLE_POSITION command." % ( str(_response['statuscode']), str(_response['statusmessage'])))
+        else:
+            raise Exception("Server nozzle detection failed, got statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
+
 
 
 def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : list, gcmd):

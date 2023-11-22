@@ -1,5 +1,5 @@
 import numpy as np
-from . import kTAMV_io, kTAMV_pm, kTAMV_utl as utl
+from . import kTAMV_pm, kTAMV_utl as utl
 import logging
 
 class kTAMV:
@@ -22,19 +22,10 @@ class kTAMV:
         self.mm_per_pixels = []         # List of mm per pixel for each calibration point
         self.cp = None                  # Center position used for offset calculations
 
-        # TODO: Change from using the ktcc_log to using the klippy logger
-        if not config.has_section('ktcc_log'):
-            raise self.printer.config_error("Klipper Toolchanger KTCC addon section not found in config, CVNozzleCalib wont work")
-
         # Load used objects.
         self.config = config 
         self.printer  = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
-        # self.gcode_macro : gcode_macro.GCodeMacro = self.printer.load_object(config, 'gcode_macro')
-        # self.toollock : ktcc_toolchanger.ktcc_toolchanger = self.printer.lookup_object('ktcc_toolchanger')
-
-        # Register backwords compatibility commands
-        self.__currentPosition = {'X': None, 'Y': None, 'Z': None}
 
         self.printer.register_event_handler("klippy:ready", self.handle_ready)
 
@@ -42,12 +33,11 @@ class kTAMV:
         self.reactor = self.printer.get_reactor()
 
         self.log = self.printer.lookup_object('ktcc_log')
-        self.io = kTAMV_io.kTAMV_io(self.log, self.camera_address, self.server_url, self.save_image)
         self.pm = kTAMV_pm.kTAMV_pm(self.config)
 
         self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
-        self.gcode.register_command('KTAMV_CALIB_NOZZLE_PX_MM', self.cmd_CALIB_NOZZLE_PX_MM, desc=self.cmd_CALIB_NOZZLE_PX_MM_help)
+        self.gcode.register_command('KTAMV_CALIB_CAMERA', self.cmd_KTAMV_CALIB_CAMERA, desc=self.cmd_KTAMV_CALIB_CAMERA_help)
         # self.gcode.register_command('KTAMV_CALIB_NOZZLE_OFFSET', self.cmd_CALIB_NOZZLE_OFFSET, desc=self.cmd_CALIB_NOZZLE_OFFSET_help)
         self.gcode.register_command('KTAMV_FIND_NOZZLE_CENTER', self.cmd_FIND_NOZZLE_CENTER, desc=self.cmd_FIND_NOZZLE_CENTER_help)
         self.gcode.register_command('KTAMV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
@@ -57,16 +47,16 @@ class kTAMV:
     def cmd_SET_CENTER(self, gcmd):
         self.cp = self.pm.get_raw_position()
         self.cp = (float(self.cp[0]), float(self.cp[1]))
-        gcmd.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
+        self.gcode.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
         
     cmd_GET_OFFSET_help = "Get offset from the current position to the configured center position"
     def cmd_GET_OFFSET(self, gcmd):
         if self.cp is None:
-            gcmd.respond_info("No center position set, use KTAMV_SET_CENTER to set it to the position you want to get offset from")
+            raise self.gcode.error("No center position set, use KTAMV_SET_CENTER to set it to the position you want to get offset from")
             return
         _pos = self.pm.get_raw_position()
         _offset = (float(_pos[0]) - self.cp[0], float(_pos[1]) - self.cp[1])
-        gcmd.respond_info("Offset from center is X:%3f Y:%3f" % _offset[0], _offset[1])
+        self.gcode.respond_info("Offset from center is X:%3f Y:%3f" % _offset[0], _offset[1])
 
     cmd_FIND_NOZZLE_CENTER_help = "Finds the center of the nozzle and moves it to the center of the camera, offset can be set from here"
     def cmd_FIND_NOZZLE_CENTER(self, gcmd):
@@ -78,7 +68,7 @@ class kTAMV:
         self._calibrate_nozzle(gcmd)
         # response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
         # logging.debug("Response: %s" % str(response))
-        # gcmd.respond_info("Response: %s" % str(response))
+        # self.gcode.respond_info("Response: %s" % str(response))
 
     def _set_camera_center_to_current_position(self):
         gcode_position = self._get_gcode_position()
@@ -91,26 +81,23 @@ class kTAMV:
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
+        ##############################
+        # Get nozzle position
+        ##############################
+        logging.debug('*** calling kTAMV_SIMPLE_NOZZLE_POSITION')
         try:
-            canread = self.io.can_read_stream(self.printer)
-            logging.debug("Can read stream: %s" % str(canread))
-            gcmd.respond_info("Can read stream: %s" % str(canread))
-            if not canread:
-                return None
-
-            _response = utl.get_nozzle_position(self.server_url, gcmd, self.reactor)
+            _response = utl.get_nozzle_position(self.server_url, self.reactor)
             if _response is None:
-                return
+                raise self.gcode.error("Did not find nozzle, aborting")
             else:
-                gcmd.respond_info("Found nozzle at position: %s after %.2f seconds" % (str(_response['position']), float(_response['runtime'])))
+                self.gcode.respond_info("Found nozzle at position: %s after %.2f seconds" % (str(_response['position']), float(_response['runtime'])))
         except Exception as e:
-            gcmd.respond_info("Failed to run burstNozzleDetection, got error: %s" % str(e))
-            return
+            raise self.gcode.Error("Failed to run burstNozzleDetection, got error: %s" % str(e))
 
 
-    cmd_CALIB_NOZZLE_PX_MM_help = "Calibrates the movement of the active nozzle around the point it started at"
-    def cmd_CALIB_NOZZLE_PX_MM(self, gcmd):
-        gcmd.respond_info("Starting mm/px calibration")
+    cmd_KTAMV_CALIB_CAMERA_help = "Calibrates the movement of the active nozzle around the point it started at"
+    def cmd_KTAMV_CALIB_CAMERA(self, gcmd):
+        self.gcode.respond_info("Starting mm/px calibration")
         self._calibrate_px_mm(gcmd)
 
     def _calibrate_px_mm(self, gcmd):
@@ -129,11 +116,11 @@ class kTAMV:
         try:
             self.pm.ensureHomed()
             # _Request_Result
-            _rr = utl.get_nozzle_position(self.server_url, gcmd, self.reactor)
+            _rr = utl.get_nozzle_position(self.server_url, self.reactor)
             
             # If we did not get a response at first querry, abort
             if _rr is None:
-                gcmd.respond_info("Did not find nozzle, aborting")
+                self.gcode.respond_info("Did not find nozzle, aborting")
                 return
 
             # Save the 2D coordinates of where the nozzle is on the camera
@@ -150,7 +137,7 @@ class kTAMV:
             _xy = self.pm.get_gcode_position()
 
             for i in range(len(self.calibrationCoordinates)):
-                gcmd.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
+                self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
 
                 # # Move to calibration location and get the nozzle position
                 _rr, _xy = self.moveRelative_getNozzlePosition(self.calibrationCoordinates[i][0], self.calibrationCoordinates[i][1], gcmd)
@@ -168,7 +155,7 @@ class kTAMV:
                 mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
                 # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                 self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                gcmd.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
+                self.gcode.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
 
                 # If this is not the last item
                 if i != (len(self.calibrationCoordinates)-1):
@@ -190,18 +177,18 @@ class kTAMV:
                     mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
                     # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                     self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                    gcmd.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
+                    self.gcode.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
 
             # Check that we have at least 75% of the calibration points
             if (len(self.mm_per_pixels) < (len(self.calibrationCoordinates) * 0.75)):
-                gcmd.respond_info("More than 25% of the calibration points failed, aborting")
+                raise self.gcode.error("More than 25% of the calibration points failed, aborting")
                 return
 
             # Calculate the average mm per pixel
             mpp = self._get_average_mpp_from_lists(gcmd)                
             # mpp = utl.get_average_mpp(self.mm_per_pixels, gcmd)
             if mpp is None:
-                gcmd.respond_info("Failed to get average mm per pixel")
+                raise self.gcode.error("Failed to get average mm per pixel")
                 return
 
             # Calculate transformation matrix
@@ -214,20 +201,16 @@ class kTAMV:
             self.newCenter = self.transformMatrix.T @ np.array([0, 0, 0, 0, 0, 1])
             guessPosition[0]= np.around(self.newCenter[0],3)
             guessPosition[1]= np.around(self.newCenter[1],3)
-            logging.info('Calibration positional guess: ' + str(guessPosition))
-            gcmd.respond_info("Calibration positional guess: " + str(guessPosition))
 
             # Move to the new center and get the nozzle position to update the camera
+            self.gcode.respond_info("Calibration positional guess: " + str(guessPosition))
             self.pm.moveAbsolute(X = guessPosition[0], Y = guessPosition[1])
-            _rr = utl.get_nozzle_position(self.server_url, gcmd, self.reactor)
+            _rr = utl.get_nozzle_position(self.server_url, self.reactor)
 
             logging.debug('*** exiting kTAMV.getDistance')
 
         except Exception as e:
-            logging.exception('Error: kTAMV.getDistance cannot run: ' + str(e))
-            gcmd.respond_info("_calibrate_px_mm failed %s" % str(e))
-            # raise e
-            return None
+            raise self.gcode.error("_calibrate_px_mm failed %s" % str(e)).with_traceback(e.__traceback__)
 
     def _calibrate_nozzle(self, gcmd, retries = 30):
         ##############################
@@ -239,18 +222,21 @@ class kTAMV:
 
         try:
             self.pm.ensureHomed()
+
+            if self.transformMatrix is None:
+                raise self.gcode.error("Camera is not calibrated, aborting")
             
             # Loop max 30 times to get the nozzle position
             for _retries in range(retries):
+                
                 # _Request_Result
-                _rr = utl.get_nozzle_position(self.server_url, gcmd, self.reactor)
+                _rr = utl.get_nozzle_position(self.server_url, self.reactor)
                 
                 # If we did not get a response, try to wiggle the toolhead to find the nozzle 4 times
                 if _rr is None:
                     if _not_found_retries > 3:
-                        gcmd.respond_info("Did not find nozzle, aborting")
-                        return
-                    gcmd.respond_info("Did not find nozzle, Will try to wiggle the toolhead to find it")
+                        raise self.gcode.error("Did not find nozzle, aborting")
+                    self.gcode.respond_info("Did not find nozzle, Will try to wiggle the toolhead to find it")
                     if _not_found_retries == 0:
                         # Wiggle the toolhead to try and find the nozzle
                         self.pm.moveRelative(X = 0.1)
@@ -261,6 +247,7 @@ class kTAMV:
                     elif _not_found_retries == 3:
                         self.pm.moveRelative(Y = -0.2)
                     _not_found_retries += 1
+                    continue
                 else:
                     _not_found_retries = 0
 
@@ -285,23 +272,23 @@ class kTAMV:
                 _offsets[0] = np.around(_offsets[0],3)
                 _offsets[1] = np.around(_offsets[1],3)
 
-                gcmd.respond_info('*** Nozzle calibration take: ' + str(_retries) + '.\n X' + str(_xy[0]) + ' Y' + str(_xy[1]) + ' \nUV: ' + str(_uv) + ' old UV: ' + str(_olduv) + ' \nOffsets: ' + str(_offsets))
+                self.gcode.respond_info('*** Nozzle calibration take: ' + str(_retries) + '.\n X' + str(_xy[0]) + ' Y' + str(_xy[1]) + ' \nUV: ' + str(_uv) + ' old UV: ' + str(_olduv) + ' \nOffsets: ' + str(_offsets))
 
                 # Check if we're not aligned to the center
                 if(_offsets[0] != 0.0 or _offsets[1] != 0.0):
                     _olduv = _uv
                     logging.debug('Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 '.format(_offsets[0],_offsets[1]))
-                    # gcmd.respond_info('Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 '.format(_offsets[0],_offsets[1]))
+                    # self.gcode.respond_info('Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 '.format(_offsets[0],_offsets[1]))
                     self.pm.moveRelative(X = _offsets[0], Y = _offsets[1], moveSpeed=1000)
                     continue
                 # finally, we're aligned to the center
                 elif(_offsets[0] == 0.0 and _offsets[1] == 0.0):
-                    gcmd.respond_info("Calibration to nozzle center complete")
+                    self.gcode.respond_info("Calibration to nozzle center complete")
                     return
 
         except Exception as e:
-            gcmd.respond_info("_calibrate_nozzle failed %s" % str(e))
-            return None
+            logging.exception('Error: kTAMV._calibrate_Tool failed: ' + str(e) + ' ' + str(e.__traceback__))
+            raise self.gcode.error(e).with_traceback(e.__traceback__)
 
     def getMMperPixel(self, distance_traveled = [], from_camera_point = [], to_camera_point = []):
         logging.debug('*** calling kTAMV.getMMperPixel')
@@ -320,7 +307,7 @@ class kTAMV:
         self.pm.moveRelative(X = X, Y = Y)
 
         # Get the nozzle position
-        _request_result = utl.get_nozzle_position(self.server_url, gcmd, self.reactor)
+        _request_result = utl.get_nozzle_position(self.server_url, self.reactor)
         
         # If we did not get a response, return None
         if _request_result is None:
@@ -342,7 +329,7 @@ class kTAMV:
         try:
             mpp, new_mm_per_pixels, new_space_coordinates, new_camera_coordinates = utl.get_average_mpp(self.mm_per_pixels, self.space_coordinates, self.camera_coordinates, gcmd)
             if (len(new_mm_per_pixels) < (len(self.mm_per_pixels) * 0.75)):
-                gcmd.respond_info("More than 25% of the calibration points failed, aborting")
+                raise self.gcode.error("More than 25% of the calibration points failed, aborting")
                 return None
             
             self.mm_per_pixels = new_mm_per_pixels
@@ -352,7 +339,7 @@ class kTAMV:
             logging.debug('*** exiting kTAMV._get_average_mpp_from_lists')
             return mpp
         except Exception as e:
-            gcmd.respond_info("_get_average_mpp_from_lists failed %s" % str(e))
+            raise self.gcode.error("_get_average_mpp_from_lists failed %s" % str(e))
             return None
         
     def getDistance(self, x1, y1, x0, y0):
