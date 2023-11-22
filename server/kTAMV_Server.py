@@ -5,6 +5,7 @@ from flask import Flask, request, send_file
 from flask import send_from_directory, send_file
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 import argparse
+import matplotlib.font_manager as fm
 
 import logging, json
 import kTAMV_Server_io as kTAMV_io
@@ -154,7 +155,8 @@ def drawOnFrame(usedFrame, text):
     draw = ImageDraw.Draw(usedFrame)
 
     # Choose a font
-    font = ImageFont.truetype("arial.ttf", 32)
+    font_path = fm.findfont(fm.FontProperties(family='arial'))
+    font = ImageFont.truetype(font_path, 32)
     
     # Draw the date on the image
     draw.text((10, 10), text, font=font, fill=(255, 255, 255))
