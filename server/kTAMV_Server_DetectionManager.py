@@ -2,7 +2,7 @@ import logging, copy, io, datetime, time, os, requests, cv2, numpy as np
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 
-import kTAMV_Server_io, kTAMV_Server
+import kTAMV_Server_io, ktamv_server
 
 
 class kTAMV_DetectionManager:
