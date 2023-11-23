@@ -336,7 +336,7 @@ install_klipper_config() {
             echo -e "nozzle_cam_url: http://127.0.0.1/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
             echo -e "server_url: http://127.0.0.1:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
             echo -e "move_speed: 1800" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
-            echo "" >> "${dest}"    # Add a blank line
+
             log_info "Added kTAMV configuration to printer.cfg"
             log_important "Please check the configuration in printer.cfg and adjust it as needed"
             # Restart Klipper
@@ -508,7 +508,7 @@ verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
 # install_or_update_python_env
-install_or_update_klipper_python_env
+# install_or_update_klipper_python_env
 
 # Link the extension to Klipper
 link_extension
