@@ -6,7 +6,7 @@ from flask import send_from_directory, send_file
 from PIL import Image, ImageDraw, ImageFont, ImageFile
 import argparse
 import matplotlib.font_manager as fm
-
+from waitress import serve
 import logging, json
 import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
@@ -203,6 +203,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Run the app with the specified port
-    app.run(host='0.0.0.0', port=args.port)
-    last_frame = None
+    #app.run(host='0.0.0.0', port=args.port)
+    serve(app, host='0.0.0.0', port=args.port)
+
     
