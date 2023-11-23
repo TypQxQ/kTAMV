@@ -1,7 +1,7 @@
 import numpy as np
 from . import kTAMV_utl as utl
 import logging
-
+ 
 class ktamv:
     def __init__(self, config):
         # Load config values
