@@ -47,7 +47,7 @@ SYSTEMDDIR="/etc/systemd/system"
 # Path to the moonraker asvc file where services are defined
 MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
-MOONRAKER_RESTART=0
+# MOONRAKER_RESTART=0
 
 # Note that this is parsed by the update process to find and update required system packages on update!
 # On update THIS SCRIPT ISN'T RAN, only this line is parsed out and used to install / update system packages.
@@ -314,7 +314,6 @@ install_update_manager() {
 
 # 
 # Logic to install the configuration to Klipper
-# TODO: Add logic
 # 
 install_klipper_config() {
     log_header "Adding configuration to printer.cfg"
@@ -389,6 +388,9 @@ EOF
 
         # Add kTAMV to the service list of Moonraker
         add_to_asvc
+
+        # Restart Moonraker
+        restart_moonraker
 }
 
 add_to_asvc()
@@ -399,9 +401,6 @@ add_to_asvc()
         if ! grep -q kTAMV_server $MOONRAKER_ASVC; then
             log_info "moonraker.asvc does not contain 'kTAMV_server'! Adding it..."
             echo -e "\kTAMV_server" >> $MOONRAKER_ASVC
-
-            # Restart Moonraker when we are done
-            MOONRAKER_RESTART = 1
         fi
     else
         log_error "moonraker.asvc not found! Add 'kTAMV_server' to the service list manually"
@@ -519,10 +518,10 @@ install_update_manager
 install_sysd
 
 # Restart Moonraker if needed
-if [ "$MOONRAKER_RESTART" -eq 1 ]; then
-    log_header "Restarting Moonraker..."
-    restart_moonraker
-fi
+# if [ "$MOONRAKER_RESTART" -eq 1 ]; then
+#     log_header "Restarting Moonraker..."
+#     restart_moonraker
+# fi
 
 # Install the configuration to Klipper
 install_klipper_config
