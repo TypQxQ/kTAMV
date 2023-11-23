@@ -365,7 +365,7 @@ install_sysd(){
     sudo /bin/sh -c "cat > ${SERVICE_FILE}" << EOF
 #Systemd service file for kTAMV_server
 [Unit]
-Description=WebCam Server to stream MJPEG from kTAMV so it can be viewed in Mainsail
+Description=Server component for kTAMV. A tool alignment tool for Klipper using machine vision.
 After=network-online.target moonraker.service
 
 [Install]
@@ -409,8 +409,8 @@ add_to_asvc()
 
 start_server()
 {
-    log_header "Launching kTAMV Webcam Server..."
-    sudo systemctl restart kTAMV_webcam_server
+    log_header "Launching kTAMV Server..."
+    sudo systemctl restart kTAMV_server
 }
 
 
