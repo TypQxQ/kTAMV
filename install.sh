@@ -510,7 +510,7 @@ check_klipper
 verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
-# install_or_update_python_env
+install_or_update_python_env
 install_or_update_klipper_python_env
 
 # Link the extension to Klipper
@@ -521,12 +521,6 @@ install_update_manager
 
 # Install kTAMV as a systemd service and then add it to the service list moonraker.asvc
 install_sysd
-
-# Restart Moonraker if needed
-# if [ "$MOONRAKER_RESTART" -eq 1 ]; then
-#     log_header "Restarting Moonraker..."
-#     restart_moonraker
-# fi
 
 # Install the configuration to Klipper
 install_klipper_config
