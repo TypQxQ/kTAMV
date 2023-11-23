@@ -34,9 +34,7 @@ be ready to hit 'emergency stop' at any time!
 Connect to your klipper machine using SSH, run these commands
 
 ```
-cd ~/
-git clone -b dev https://github.com/TypQxQ/kTAMV.git
-bash ~/kTAMV/install.sh
+cd ~/ && git clone -b dev https://github.com/TypQxQ/kTAMV.git && bash ~/kTAMV/install.sh
 ```
 
 This will clone the repository and execute the install script.
