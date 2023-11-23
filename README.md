@@ -1,5 +1,4 @@
 # kTAMV - Klipper Tool Alignment (using) Machine Vision
-kTAMV builds on TAMV, https://github.com/HaythamB/TAMV and on CVToolheadCalibration that is also a adaptation of TAMV but for IDEX printers.
 
 This is a non working development as of 14/11/2023.
 
@@ -71,3 +70,4 @@ camera_position: 75,75 # X,Y mm values of the T0 toolhead visible in the center 
 ## Special thanks
  - This extension is heavily inspired by TAMV. TAMV is an extension for Duet based printers which also uses computer vision to align toolheads. For more information see: https://github.com/HaythamB/TAMV
  - The user Dorkscript from the DOOMCUBE discord, who tested early versions of the extension and gave very valuable feedback
+ - kTAMV builds on TAMV, https://github.com/HaythamB/TAMV and on CVToolheadCalibration that is also a adaptation of TAMV but for IDEX printers.
