@@ -381,7 +381,7 @@ Restart=always
 RestartSec=10
 EOF
     # Use systemctl to enable the klipper systemd service script
-        sudo systemctl enable kTAMV_webcam_server.service
+        sudo systemctl enable kTAMV_server.service
         sudo systemctl daemon-reload
 
         # Start the server
