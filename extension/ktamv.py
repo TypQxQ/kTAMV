@@ -38,13 +38,14 @@ class ktamv:
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
         self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
 
-    cmd_SET_CENTER_help = "Set current toolhead position as the center position to get offset from"
+    cmd_SET_CENTER_help = "Saves the center position for offset calculations based on the current toolhead position."
+    
     def cmd_SET_CENTER(self, gcmd):
         self.cp = self.pm.get_raw_position()
         self.cp = (float(self.cp[0]), float(self.cp[1]))
         self.gcode.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
         
-    cmd_MOVE_TO_ORIGIN_help = "Set current toolhead position as the center position to get offset from"
+    cmd_MOVE_TO_ORIGIN_help = "Sets the center position for offset calculations based on the current toolhead position"
     def cmd_MOVE_TO_ORIGIN(self, gcmd):
         self.cp = self.pm.get_raw_position()
         self.cp = (float(self.cp[0]), float(self.cp[1]))

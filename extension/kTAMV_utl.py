@@ -175,6 +175,7 @@ class kTAMV_pm:
         
         _current_position = self.get_gcode_position()
         _new_position = [_current_position[0] + X, _current_position[1] + Y, _current_position[2] + Z]
+        logging.debug('Current absolute position: ' + str(_current_position))
         logging.debug('New absolute position to move to: ' + str(_new_position))
         
         try:
@@ -205,6 +206,7 @@ class kTAMV_pm:
     def moveAbsoluteToArray(self, pos_array, moveSpeed=__defaultSpeed):
         gcode = "G1 "
         for i in range(len(pos_array)):
+            debug = "moveAbsoluteToArray pos_array[%s] = %s" % (i, pos_array[i])
             if i == 0:
                 gcode += "X%s " % (pos_array[i])
             elif i == 1:
