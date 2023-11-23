@@ -331,6 +331,7 @@ install_klipper_config() {
         already_included=$(grep -c '\[ktamv\]' ${dest} || true)
         if [ "${already_included}" -eq 0 ]; then
             echo "" >> "${dest}"    # Add a blank line
+            echo "" >> "${dest}"    # Add a blank line
             echo -e "[ktamv]" >> "${dest}"    # Add the section header
             echo -e "nozzle_cam_url: http://127.0.0.1/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
             echo -e "server_url: http://127.0.0.1:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
