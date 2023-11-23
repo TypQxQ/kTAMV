@@ -401,7 +401,7 @@ add_to_asvc()
         log_info "moonraker.asvc was found"
         if ! grep -q kTAMV_server $MOONRAKER_ASVC; then
             log_info "moonraker.asvc does not contain 'kTAMV_server'! Adding it..."
-            echo "" >> >> $MOONRAKER_ASVC    # Add a blank line
+            echo "" >> $MOONRAKER_ASVC    # Add a blank line
             echo -e "kTAMV_server" >> $MOONRAKER_ASVC
         fi
     else
