@@ -30,13 +30,13 @@ class ktamv:
     def handle_ready(self):
         self.reactor = self.printer.get_reactor()
         self.pm = utl.kTAMV_pm(self.config) # Printer Manager
-
-        self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
-        self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
         self.gcode.register_command('KTAMV_CALIB_CAMERA', self.cmd_KTAMV_CALIB_CAMERA, desc=self.cmd_KTAMV_CALIB_CAMERA_help)
         self.gcode.register_command('KTAMV_FIND_NOZZLE_CENTER', self.cmd_FIND_NOZZLE_CENTER, desc=self.cmd_FIND_NOZZLE_CENTER_help)
-        self.gcode.register_command('KTAMV_SET_CENTER', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
+        self.gcode.register_command('KTAMV_SET_ORIGIN', self.cmd_SET_CENTER, desc=self.cmd_SET_CENTER_help)
         self.gcode.register_command('KTAMV_GET_OFFSET', self.cmd_GET_OFFSET, desc=self.cmd_GET_OFFSET_help)
+        self.gcode.register_command('KTAMV_MOVE_TO_ORIGIN', self.cmd_MOVE_TO_ORIGIN, desc=self.cmd_MOVE_TO_ORIGIN_help)
+        self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
+        self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
 
     cmd_SET_CENTER_help = "Set current toolhead position as the center position to get offset from"
     def cmd_SET_CENTER(self, gcmd):
@@ -44,6 +44,12 @@ class ktamv:
         self.cp = (float(self.cp[0]), float(self.cp[1]))
         self.gcode.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
         
+    cmd_MOVE_TO_ORIGIN_help = "Set current toolhead position as the center position to get offset from"
+    def cmd_MOVE_TO_ORIGIN(self, gcmd):
+        self.cp = self.pm.get_raw_position()
+        self.cp = (float(self.cp[0]), float(self.cp[1]))
+        self.gcode.respond_info("Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1])
+
     cmd_GET_OFFSET_help = "Get offset from the current position to the configured center position"
     def cmd_GET_OFFSET(self, gcmd):
         if self.cp is None:
@@ -61,9 +67,6 @@ class ktamv:
     def cmd_SIMPLE_TEST(self, gcmd):
         self._calibrate_px_mm(gcmd)
         self._calibrate_nozzle(gcmd)
-        # response = json.loads(requests.get(self.server_url + "/getAllReqests").text)
-        # logging.debug("Response: %s" % str(response))
-        # self.gcode.respond_info("Response: %s" % str(response))
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
@@ -78,7 +81,7 @@ class ktamv:
             else:
                 self.gcode.respond_info("Found nozzle at position: %s after %.2f seconds" % (str(_response['position']), float(_response['runtime'])))
         except Exception as e:
-            raise self.gcode.Error("Failed to run burstNozzleDetection, got error: %s" % str(e))
+            raise self.gcode.error("Failed to run burstNozzleDetection, got error: %s" % str(e))
 
 
     cmd_KTAMV_CALIB_CAMERA_help = "Calibrates the movement of the active nozzle around the point it started at"
