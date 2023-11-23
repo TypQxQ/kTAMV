@@ -58,7 +58,7 @@ MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 # The virtualenv is for our virtual package env we create
 # The curl requirement is for some things in this bootstrap script.
 # libatlas 4 numpy
-# matplotlib 4 numpy
+# matplotlib 4 fonts
 PKGLIST="python3 python3-pip virtualenv python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress"
 
 
