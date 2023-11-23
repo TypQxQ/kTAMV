@@ -355,7 +355,7 @@ install_sysd(){
     log_header "Installing system start script so the server can start from Moonrker..."
 
     # Comand to launch the server to be used in the service file
-    LAUNCH_CMD="${KTAMV_ENV}/bin/python ${SRCDIR}/server/ktamv_server.py --port ${PORT}"
+    LAUNCH_CMD="${KTAMV_ENV}/bin/python ${KTAMV_REPO_DIR}/server/ktamv_server.py --port ${PORT}"
 
     # Create systemd service file
     SERVICE_FILE="${SYSTEMDDIR}/kTAMV_server.service"
@@ -363,7 +363,7 @@ install_sysd(){
     # If the service file already exists, don't overwrite
     [ -f $SERVICE_FILE ] && return
     sudo /bin/sh -c "cat > ${SERVICE_FILE}" << EOF
-#Systemd service file for kTAMV_webcam_server
+#Systemd service file for kTAMV_server
 [Unit]
 Description=WebCam Server to stream MJPEG from kTAMV so it can be viewed in Mainsail
 After=network-online.target moonraker.service
@@ -374,8 +374,8 @@ WantedBy=multi-user.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$SRCDIR
-ExecStart=$CMD
+WorkingDirectory=$KTAMV_REPO_DIR
+ExecStart=$LAUNCH_CMD
 Restart=always
 RestartSec=10
 EOF
@@ -395,7 +395,7 @@ EOF
 
 add_to_asvc()
 {
-    log_header "Trying to add kTAMV_webcam_server to service list"
+    log_header "Trying to add kTAMV_server to service list"
     if [ -f $MOONRAKER_ASVC ]; then
         log_info "moonraker.asvc was found"
         if ! grep -q kTAMV_server $MOONRAKER_ASVC; then
