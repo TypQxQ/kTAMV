@@ -12,9 +12,9 @@ import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 
 # Create logs folder if it doesn't exist and configure logging
-if not os.path.exists("../logs"):
-    os.makedirs("../logs")
-logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='../logs/kTAMV_Server.log', filemode='w', encoding='utf-8')
+if not os.path.exists("./logs"):
+    os.makedirs("logs")
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)-8s %(message)s', datefmt='%a, %d %b %Y %H:%M:%S', filename='logs/kTAMV_Server.log', filemode='w', encoding='utf-8')
 
 # create a Flask app
 app = Flask(__name__)
