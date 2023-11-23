@@ -11,11 +11,13 @@ TODO: Add more indo based on below and TAMV.
 CVToolheadCalibration is an extension for IDEX printers running klipper that adds functionality to calibrate toolhead offset using a USB microscope/webcam. With this extension you can easily calibrate the toolhead offsets. 
 
 Adds the following commands to klipper:
-  - `CV_TEST`, debug command to check if the script works and OpenCV versions
-  - `CV_CENTER_TOOLHEAD`, moves the current toolhead to the configured camera_position
-  - `CV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image
-  - `CV_CALIB_NOZZLE_PX_MM`, moves the current active toolhead to various positions around the center to calibrate movement data
-  - `CV_CALIB_OFFSET`, The main function, runs the calibration function on the T0 toolhead, then switches to T1, calibrates the offset and moves T1 there to compare
+  - `KTAMV_CALIB_CAMERA`, moves the current active toolhead around the current position to calibrate movement data
+  - `KTAMV_FIND_NOZZLE_CENTER`, detects the nozzle in the current nozzle cam image and atempts to move it to the center of the image.
+  - `KTAMV_SET_ORIGIN`, sets the current X,Y position as origin to use for calibrating from.
+  - `KTAMV_GET_OFFSET`, Get the offset from the current X,Y position to the origin X,Y position. Prints it to console.
+  - `KTAMV_MOVE_TO_ORIGIN`, moves the toolhead to the configured center position origin as set with KTAMV_SET_ORIGIN
+  - `KTAMV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image and reports whether it is found. The printer will not move.
+  - `KTAMV_TEST`, debug command to check if the script works and OpenCV versions
 
 Both of the calibration commands have optional command line parameters
   - CALIB_VALUE=0.5, override the default or configured CALIB_VALUE value
