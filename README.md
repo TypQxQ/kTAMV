@@ -19,11 +19,6 @@ Adds the following commands to klipper:
   - `KTAMV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image and reports whether it is found. The printer will not move.
   - `KTAMV_TEST`, debug command to check if the script works and OpenCV versions
 
-Both of the calibration commands have optional command line parameters
-  - CALIB_VALUE=0.5, override the default or configured CALIB_VALUE value
-  - CALIB_ITERATIONS=5, override the default or configured CALIB_ITERATIONS value
-  - PRINT_POSITIONS=1, only for CV_CALIB_NOZZLE_PX_MM, returns the raw MM and PX values of detections used for calibration
-
 !!! !!! !!! !!! !!! 
 This is alpha software and only meant for advanced users!
 Please only use while supervising your printer, 
@@ -40,6 +35,10 @@ cd ~/ && git clone -b dev https://github.com/TypQxQ/kTAMV.git && bash ~/kTAMV/in
 ```
 
 This will clone the repository and execute the install script.
+
+------ old ------
+
+
 
 To enable automatic updates using moonraker, add the following to your moonraker config:
 
