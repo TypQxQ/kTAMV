@@ -352,7 +352,7 @@ install_klipper_config() {
 # 
 # Logic to install kTAMV as a systemd service
 # 
-install_sysd{
+install_sysd(){
     log_header "Installing system start script so the server can start from Moonrker..."
 
     # Comand to launch the server to be used in the service file
