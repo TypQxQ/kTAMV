@@ -38,6 +38,16 @@ KLIPPER_LOGS_HOME="${HOME}/printer_data/logs"
 # This is where Klipper config files were stored before the 0.10.0 release
 OLD_KLIPPER_CONFIG_HOME="${HOME}/klipper_config"
 
+# Port to run the server on
+PORT="${PORT:-8085}"
+
+# Path to the systemd directory
+SYSTEMDDIR="/etc/systemd/system"
+
+# Path to the moonraker asvc file where services are defined
+MOONRAKER_ASVC=~/printer_data/moonraker.asvc
+
+MOONRAKER_RESTART=0
 
 # Note that this is parsed by the update process to find and update required system packages on update!
 # On update THIS SCRIPT ISN'T RAN, only this line is parsed out and used to install / update system packages.
@@ -184,10 +194,9 @@ install_or_update_klipper_python_env()
 #
 check_for_ktamv()
 {
-    # Do a basic check to see if OctoPrint is running on the standard port.
-    # This obviously doesn't work for all OctoPrint setups, but it works for the default ones.
-    if curl -s "http://127.0.0.1:8085" >/dev/null ; then
-        log_important "Just a second... kTAMV was detected!"
+    # Do a basic check to see if anything is running on the specified port.
+    if curl -s "http://127.0.0.1:${PORT}" >/dev/null ; then
+        log_important "Just a second... kTAMV or something else was detected running on port ${PORT}."
         log_blank
         log_important "This install script is used to install kTAMV for Mainsail, Fluidd, Moonraker, etc."
         log_blank
@@ -250,6 +259,13 @@ verify_home_dirs() {
         log_error "Klipper virtual evniroment directory (${KLIPPER_ENV}) not found. Use '-j <dir>' option to override"
         exit -1
     fi
+
+    if [ ! -d "${SYSTEMDDIR}" ]; then
+        log_error "System directory (${SYSTEMDDIR}) not found. Use '-s <dir>' option to override"
+        exit -1
+    fi
+
+    
 }
 
 restart_klipper()
@@ -279,8 +295,6 @@ install_update_manager() {
     log_header "Adding update manager to moonraker.conf"
     file="${KLIPPER_CONFIG_HOME}/moonraker.conf"
     if [ -f "${file}" ]; then
-        restart=0
-
         update_section=$(grep -c '\[update_manager ktamv\]' ${file} || true)
         if [ "${update_section}" -eq 0 ]; then
             echo "" >> "${file}"
@@ -293,9 +307,6 @@ install_update_manager() {
             log_error "[update_manager ktamv] already exists in moonraker.conf - skipping installing it there"
         fi
 
-        if [ "$restart" -eq 1 ]; then
-            restart_moonraker
-        fi
     else
         log_error "moonraker.conf not found!"
     fi
@@ -303,33 +314,110 @@ install_update_manager() {
 
 # 
 # Logic to install the configuration to Klipper
+# TODO: Add logic
 # 
 install_klipper_config() {
-    log_header "Adding update manager to moonraker.conf"
-    file="${KLIPPER_CONFIG_HOME}/printer.cfg"
-    if [ -f "${file}" ]; then
-        restart=0
+    log_header "Adding configuration to printer.cfg"
 
-        update_section=$(grep -c '\[ktamv\]' ${file} || true)
-        if [ "${update_section}" -eq 0 ]; then
-            echo "" >> "${file}"
-            while read -r line; do
-                echo -e "${line}" >> "${file}"
-            done < "${KTAMV_REPO_DIR}/klipper.txt"
-            echo "" >> "${file}"
-            restart=1
+    # Add configuration to printer.cfg if it doesn't exist
+    dest=${KLIPPER_CONFIG_HOME}/printer.cfg
+    if test -f $dest; then
+        # Backup the original printer.cfg file
+        next_dest="$(nextfilename "$dest")"
+        log_info "Copying original printer.cfg file to ${next_dest}"
+        cp ${dest} ${next_dest}
+
+        # Add the configuration to printer.cfg
+        # This example assumes that that both the server and the webcam stream are running on the same machine as Klipper
+        already_included=$(grep -c '\[ktamv\]' ${dest} || true)
+        if [ "${already_included}" -eq 0 ]; then
+            echo "" >> "${dest}"    # Add a blank line
+            echo -e "\[ktamv\]" >> "${dest}"    # Add the section header
+            echo -e "nozzle_cam_url: http://127.0.0.1/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
+            echo -e "server_url: http://127.0.0.1:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
+            echo -e "move_speed: 1800" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
+            echo "" >> "${dest}"    # Add a blank line
+            log_info "Added kTAMV configuration to printer.cfg"
+            log_important "Please check the configuration in printer.cfg and adjust it as needed"
+            # Restart Klipper
+            restart_klipper
         else
-            log_error "[KTAMV] already exists in printer.cfg - skipping adding it there"
-        fi
-
-        if [ "$restart" -eq 1 ]; then
-            restart_moonraker
+            log_error "[ktamv] already exists in printer.cfg - skipping adding it there"
         fi
     else
-        log_error "printer.cfg not found!"
+        log_error "File printer.cfg file not found! Cannot add kTAMV configuration. Do it manually."
     fi
 }
 
+# 
+# Logic to install kTAMV as a systemd service
+# 
+install_sysd{
+    log_header "Installing system start script so the server can start from Moonrker..."
+
+    # Comand to launch the server to be used in the service file
+    LAUNCH_CMD="${KTAMV_ENV}/bin/python ${SRCDIR}/server/ktamv_server.py --port ${PORT}"
+
+    # Create systemd service file
+    SERVICE_FILE="${SYSTEMDDIR}/kTAMV_server.service"
+
+    # If the service file already exists, don't overwrite
+    [ -f $SERVICE_FILE ] && return
+    sudo /bin/sh -c "cat > ${SERVICE_FILE}" << EOF
+#Systemd service file for kTAMV_webcam_server
+[Unit]
+Description=WebCam Server to stream MJPEG from kTAMV so it can be viewed in Mainsail
+After=network-online.target moonraker.service
+
+[Install]
+WantedBy=multi-user.target
+
+[Service]
+Type=simple
+User=$USER
+WorkingDirectory=$SRCDIR
+ExecStart=$CMD
+Restart=always
+RestartSec=10
+EOF
+    # Use systemctl to enable the klipper systemd service script
+        sudo systemctl enable kTAMV_webcam_server.service
+        sudo systemctl daemon-reload
+
+        # Start the server
+        start_server
+
+        # Add kTAMV to the service list of Moonraker
+        add_to_asvc
+}
+
+add_to_asvc()
+{
+    log_header "Trying to add kTAMV_webcam_server to service list"
+    if [ -f $MOONRAKER_ASVC ]; then
+        log_info "moonraker.asvc was found"
+        if ! grep -q kTAMV_server $MOONRAKER_ASVC; then
+            log_info "moonraker.asvc does not contain 'kTAMV_server'! Adding it..."
+            echo -e "\kTAMV_server" >> $MOONRAKER_ASVC
+
+            # Restart Moonraker when we are done
+            MOONRAKER_RESTART = 1
+        fi
+    else
+        log_error "moonraker.asvc not found! Add 'kTAMV_server' to the service list manually"
+    fi
+}
+
+start_server()
+{
+    log_header "Launching kTAMV Webcam Server..."
+    sudo systemctl restart kTAMV_webcam_server
+}
+
+
+# 
+# Logic to ask a question and get a yes or no answer while displaying a prompt under installation
+# 
 prompt_yn() {
     while true; do
         read -n1 -p "
@@ -358,7 +446,8 @@ log_blank
 log_blank
 log_important "kTAMV is used to align your printer's toolheads using machine vision."
 log_blank
-log_info "Usage: $0 [-k <klipper_home_dir>] [-c <klipper_config_dir>] [-j <klipper_enviroment_dir>] [-m <moonraker_home_dir>]"
+log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_config_dir>] [-j <klipper_enviroment_dir>]"
+log_info "[-m <moonraker_home_dir>] [-s <system_dir>]"
 log_blank
 log_blank
 log_important "This script will take very long to run (up to 2 hours)."
@@ -385,8 +474,20 @@ while getopts "k:c:m:ids" arg; do
         m) MOONRAKER_HOME=${OPTARG};;
         c) KLIPPER_CONFIG_HOME=${OPTARG};;
         j) KLIPPER_ENV=${OPTARG};;
+        s) SYSTEMDDIR=${OPTARG};;
+        p) PORT=${OPTARG};;
     esac
 done
+
+function nextfilename {
+    local name="$1"
+    if [ -d "${name}" ]; then
+        printf "%s-%s" ${name%%.*} $(date '+%Y%m%d_%H%M%S')
+    else
+        printf "%s-%s.%s-old" ${name%%.*} $(date '+%Y%m%d_%H%M%S') ${name#*.}
+    fi
+}
+
 
 # Make sure we aren't running as root
 verify_ready
@@ -414,11 +515,16 @@ link_extension
 # Install the update manager to Moonraker
 install_update_manager
 
+# Install kTAMV as a systemd service and then add it to the service list moonraker.asvc
+install_sysd
+
+# Restart Moonraker if needed
+if [ "$MOONRAKER_RESTART" -eq 1 ]; then
+    restart_moonraker
+fi
+
 # Install the configuration to Klipper
 install_klipper_config
-
-# Restart Klipper
-restart_klipper
 
 log_blank
 log_blank
