@@ -1,3 +1,0 @@
-opencv-python-headless>=3.5.0
-numpy>=1.20.0
-requests>=1.28.0
