@@ -35,8 +35,8 @@ Connect to your klipper machine using SSH, run these commands
 
 ```
 cd ~/
-git clone https://github.com/cawmit/klipper_cv_toolhead_calibration.git
-bash ~/klipper_cv_toolhead_calibration/install.sh
+git clone -b dev https://github.com/TypQxQ/kTAMV.git
+bash ~/kTAMV/install.sh
 ```
 
 This will clone the repository and execute the install script.
