@@ -171,7 +171,7 @@ install_or_update_python_env()
     # For example the version of numpy 1.26.2 was unable to be imported in the virtual env when already installed in OS.
     log_important "Installing or updating required python libs to kTAMV..."
     log_important "Especially OpenCV can take up to a couple of hours because it needs compiling."
-    "${KTAMV_ENV}"/bin/pip3 install -q -r "${KTAMV_REPO_DIR}"/server/requirements.txt
+    "${KTAMV_ENV}"/bin/pip3 install -q
     log_info "Python libs installed."
 }
 
