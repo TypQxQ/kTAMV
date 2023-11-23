@@ -377,7 +377,7 @@ WantedBy=multi-user.target
 [Service]
 Type=simple
 User=$USER
-WorkingDirectory=$KTAMV_REPO_DIR
+WorkingDirectory=$KTAMV_REPO_DIR/server
 ExecStart=$LAUNCH_CMD
 Restart=always
 RestartSec=10
