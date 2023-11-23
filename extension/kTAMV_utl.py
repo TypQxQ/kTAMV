@@ -46,77 +46,80 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
     # send calling to log
     logging.debug('*** calling kTAMV_utl.get_average_mpp')
 
-    # Calculate the average mm per pixel and the standard deviation
-    mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-    
-    __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
-
-    # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
-    if mpps_std_dev / mpp > 0.1:
-        gcmd.respond_info(__mpp_msg + "\nTrying to exclude deviant values and recalculate")
+    try:
+        # Calculate the average mm per pixel and the standard deviation
+        mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
         
-        # ----------------- 1st recalculation -----------------
-        # Exclude the highest value if it deviates more than 20% from the mean value and recalculate. This is the most likely to be a deviant value
-        if max(mpps) > mpp + (mpp * 0.20):
-            __max_index = mpps.index(max(mpps))
-            mpps.remove(mpps[__max_index])
-            space_coordinates.remove(space_coordinates[__max_index])
-            camera_coordinates.remove(camera_coordinates[__max_index])
-        
-        # Calculate the average mm per pixel and the standard deviation
-        mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
+        __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
 
-        # ----------------- 2nd recalculation -----------------
-        # Exclude the lowest value if it deviates more than 20% from the mean value and recalculate
-        if min(mpps) < mpp - (mpp * 0.20):
-            __min_index = mpps.index(min(mpps))
-            mpps.remove(mpps[__min_index])
-            space_coordinates.remove(space_coordinates[__min_index])
-            camera_coordinates.remove(camera_coordinates[__min_index])
+        # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
+        if mpps_std_dev / mpp > 0.1:
+            gcmd.respond_info(__mpp_msg + "\nTrying to exclude deviant values and recalculate")
             
-        # Calculate the average mm per pixel and the standard deviation
-        mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-
-        gcmd.respond.info("Recalculated std. dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
-
-        # ----------------- 3rd recalculation -----------------
-        # Exclude the values that are more than 2 standard deviations from the mean and recalculate
-        for i in reversed(range(len(list(mpps)))):
-            if mpps[i] > mpp + (mpps_std_dev * 2) or mpps[i] < mpp - (mpps_std_dev * 2):
-                mpps.remove(mpps[i])
-                space_coordinates.remove(space_coordinates[i])
-                camera_coordinates.remove(camera_coordinates[i])
-
-        # Calculate the average mm per pixel and the standard deviation
-        mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-
-        # ----------------- 4th recalculation -----------------
-        # Exclude any other value that deviates more than 25% from mean value and recalculate
-        for i in reversed(range(len(mpps))):
-            if mpps[i] > mpp + (mpp * 0.5) or mpps[i] < mpp - (mpp * 0.5):
-                logging.log("Removing value %s from list" % str(mpps[i]))
-                mpps.remove(mpps[i])
+            # ----------------- 1st recalculation -----------------
+            # Exclude the highest value if it deviates more than 20% from the mean value and recalculate. This is the most likely to be a deviant value
+            if max(mpps) > mpp + (mpp * 0.20):
+                __max_index = mpps.index(max(mpps))
+                mpps.remove(mpps[__max_index])
+                space_coordinates.remove(space_coordinates[__max_index])
+                camera_coordinates.remove(camera_coordinates[__max_index])
             
-        # Calculate the average mm per pixel and the standard deviation
-        mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
+            # Calculate the average mm per pixel and the standard deviation
+            mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
 
-        # Final check if standard deviation is still too high
-        gcmd.respond_info("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2))) + " %.")
-        gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
+            # ----------------- 2nd recalculation -----------------
+            # Exclude the lowest value if it deviates more than 20% from the mean value and recalculate
+            if min(mpps) < mpp - (mpp * 0.20):
+                __min_index = mpps.index(min(mpps))
+                mpps.remove(mpps[__min_index])
+                space_coordinates.remove(space_coordinates[__min_index])
+                camera_coordinates.remove(camera_coordinates[__min_index])
+                
+            # Calculate the average mm per pixel and the standard deviation
+            mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
 
-        if mpps_std_dev / mpp > 0.2 or len(mpps) < 5:
-            gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
-            return None
+            gcmd.respond.info("Recalculated std. dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
+
+            # ----------------- 3rd recalculation -----------------
+            # Exclude the values that are more than 2 standard deviations from the mean and recalculate
+            for i in reversed(range(len(list(mpps)))):
+                if mpps[i] > mpp + (mpps_std_dev * 2) or mpps[i] < mpp - (mpps_std_dev * 2):
+                    mpps.remove(mpps[i])
+                    space_coordinates.remove(space_coordinates[i])
+                    camera_coordinates.remove(camera_coordinates[i])
+
+            # Calculate the average mm per pixel and the standard deviation
+            mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
+
+            # ----------------- 4th recalculation -----------------
+            # Exclude any other value that deviates more than 25% from mean value and recalculate
+            for i in reversed(range(len(mpps))):
+                if mpps[i] > mpp + (mpp * 0.5) or mpps[i] < mpp - (mpp * 0.5):
+                    logging.log("Removing value %s from list" % str(mpps[i]))
+                    mpps.remove(mpps[i])
+                
+            # Calculate the average mm per pixel and the standard deviation
+            mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
+
+            # Final check if standard deviation is still too high
+            gcmd.respond_info("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2))) + " %.")
+            gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
+
+            if mpps_std_dev / mpp > 0.2 or len(mpps) < 5:
+                gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
+                return None
+            else:
+                gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
+                logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(mpp), str(mpps_std_dev)))
         else:
-            gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
-            logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(mpp), str(mpps_std_dev)))
-    else:
-        gcmd.respond_info(__mpp_msg)
+            gcmd.respond_info(__mpp_msg)
 
-    # send exiting to log
-    logging.debug('*** exiting kTAMV_utl.get_average_mpp')
+        # send exiting to log
+        logging.debug('*** exiting kTAMV_utl.get_average_mpp')
 
-    return mpp, mpps, space_coordinates, camera_coordinates
+        return mpp, mpps, space_coordinates, camera_coordinates
+    except Exception as e:
+        raise e.with_traceback(e.__traceback__)
 
 def _get_std_dev_and_mean(mpps : list):
     # Calculate the average mm per pixel and the standard deviation

@@ -342,7 +342,7 @@ class ktamv:
             logging.debug('*** exiting kTAMV._get_average_mpp_from_lists')
             return mpp
         except Exception as e:
-            raise self.gcode.error("_get_average_mpp_from_lists failed %s" % str(e))
+            raise self.gcode.error("_get_average_mpp_from_lists failed %s" % str(e)).with_traceback(e.__traceback__)
             return None
         
     def getDistance(self, x1, y1, x0, y0):
