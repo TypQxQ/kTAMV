@@ -158,14 +158,17 @@ install_or_update_python_env()
     ensure_py_venv
 
     # Update pip if needed
-    log_info "Updating PIP if needed..."
-    "${KTAMV_ENV}"/bin/python -m pip install --upgrade pip
+    # log_info "Updating PIP if needed..."
+    # "${KTAMV_ENV}"/bin/python -m pip install --upgrade pip
 
     # Update setuptools if needed
-    log_info "Updating setuptools if needed..."
-    "${KTAMV_ENV}"/bin/pip3 install -q --upgrade pip setuptools wheel
+    # log_info "Updating setuptools if needed..."
+    # "${KTAMV_ENV}"/bin/pip3 install -q --upgrade pip setuptools wheel
 
     # Finally, ensure our plugin requirements are installed and updated.
+    # Installing versions that are too new can cause issues, so we pin to the versions we know work.
+    # This are the versions installed in in Raspberry Pi OS as of 2023-11-23.
+    # For example the version of numpy 1.26.2 was unable to be imported in the virtual env when already installed in OS.
     log_important "Installing or updating required python libs to kTAMV..."
     log_important "Especially OpenCV can take up to a couple of hours because it needs compiling."
     "${KTAMV_ENV}"/bin/pip3 install -q -r "${KTAMV_REPO_DIR}"/server/requirements.txt
@@ -508,7 +511,7 @@ verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
 # install_or_update_python_env
-# install_or_update_klipper_python_env
+install_or_update_klipper_python_env
 
 # Link the extension to Klipper
 link_extension
