@@ -1,4 +1,5 @@
 import numpy as np
+from math import sqrt
 from . import kTAMV_utl as utl
 import logging
  
@@ -120,7 +121,7 @@ class ktamv:
             _frame_width = _rr['frame_width']
             _frame_height = _rr['frame_height']
 
-            # Save the position of the nozzle in the center
+            # Save the position of the nozzle in the as old (move from) value
             _olduv = _uv
 
             # Save the 3D coordinates of where the nozzle is on the printer in relation to the endstop
@@ -130,7 +131,7 @@ class ktamv:
                 # self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
 
                 # # Move to calibration location and get the nozzle position
-                _rr, _xy = self.moveRelative_getNozzlePosition(self.calibrationCoordinates[i][0], self.calibrationCoordinates[i][1], gcmd)
+                _rr, _xy = self.moveRelative_and_getNozzlePosition(self.calibrationCoordinates[i][0], self.calibrationCoordinates[i][1], gcmd)
 
                 # If we did not get a response, skip this calibration point
                 if _rr is  None:
@@ -148,37 +149,43 @@ class ktamv:
                 self.gcode.respond_info("MM per pixel for step %s is %s" % (str(i+1), str(mpp)))
 
                 # If this is not the last item
-                if i != (len(self.calibrationCoordinates)-1):
+                if i < (len(self.calibrationCoordinates)-1):
+                    gcmd.respond_info("Moving back to starting position= X: %s Y: %s" % (str(-self.calibrationCoordinates[i][0]), str(-self.calibrationCoordinates[i][1])))
                     # Move back to center but do not save the calibration point because it would be the same as the first and double the errors if it is wrong
                     self.pm.moveRelative(X = -self.calibrationCoordinates[i][0], Y = -self.calibrationCoordinates[i][1])
-                # If this is the last calibration point, move to the new center and get the nozzle position to update the camera
-                else:
-                    _olduv = _uv    # Last position to get center from inverted move
-                    # # Move to calibration location and get the nozzle position
-                    _rr, _xy = self.moveRelative_getNozzlePosition(self.calibrationCoordinates[i][0], self.calibrationCoordinates[i][1], gcmd)
-                    # If we did not get a response, skip this calibration point
-                    if _rr is  None:
-                        break   # This was the last thing to do, so just break out of the loop
-                    
-                    # If we did get a response, do the calibration point
-                    _uv = _rr['position']  # Save the new nozzle position as UV 2D coordinates
-                    
-                    # Calculate mm per pixel and save it to a list
-                    mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
-                    # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
-                    self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                    self.gcode.respond_info("Calibrated camera step %s of %s: mm/pixel found: %s" % (str(i+1), str(len(self.calibrationCoordinates)), str(mpp)))
 
+            # 
+            # Finish the calibration loop
+            # 
+            
+            # Move back to the center and get coordinates for the center
+            gcmd.respond_info("Moving back to starting position")
+            _olduv = _uv    # Last position to get center from inverted move
+            _rr, _xy = self.moveRelative_and_getNozzlePosition(-self.calibrationCoordinates[i][0], -self.calibrationCoordinates[i][1], gcmd)
+
+            # If we did not get a response, indicate it by setting _uv to None
+            if _rr is None:
+                _uv = None
+            else:
+                _uv = _rr['position']  # Save the new nozzle position as UV 2D coordinates
+
+                # Calculate mm per pixel and save it to a list
+                mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
+                # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
+                self._save_coordinates_for_matrix(_xy, _uv, mpp)
+                self.gcode.respond_info("Calibrated camera step %s of %s: mm/pixel found: %s" % (str(i+1), str(len(self.calibrationCoordinates)), str(mpp)))
+
+            # 
+            # All calibration points are done, calculate the average mm per pixel
+            # 
+            
             # Check that we have at least 75% of the calibration points
             if (len(self.mm_per_pixels) < (len(self.calibrationCoordinates) * 0.75)):
                 raise self.gcode.error("More than 25% of the calibration points failed, aborting")
 
             # Calculate the average mm per pixel
-            mpp = self._get_average_mpp_from_lists(gcmd)                
-            # mpp = utl.get_average_mpp(self.mm_per_pixels, gcmd)
-            if mpp is None:
-                raise self.gcode.error("Failed to get average mm per pixel")
-                return
+            gcmd.respond_info("Calculating average mm per pixel")
+            self.mpp = self._get_average_mpp_from_lists(gcmd)                
 
             # Calculate transformation matrix
             self.transform_input = [(self.space_coordinates[i], 
@@ -188,8 +195,21 @@ class ktamv:
             
             # define camera center in machine coordinate space
             self.newCenter = self.transformMatrix.T @ np.array([0, 0, 0, 0, 0, 1])
-            guessPosition[0]= np.around(self.newCenter[0],3)
-            guessPosition[1]= np.around(self.newCenter[1],3)
+            guessPosition[0]= round(self.newCenter[0],3)
+            guessPosition[1]= round(self.newCenter[1],3)
+
+            _current_position = self.pm.get_gcode_position()
+
+            guessPosition_q=[1,1]
+            _cx,_cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
+            _v = [_cx**2, _cy**2, _cx*_cy, _cx, _cy, 0]
+            _offsets = -1*(0.55*self.transformMatrix.T @ _v)
+            guessPosition_q[0] = round(_offsets[0],3) + round(_current_position[0],3)
+            guessPosition_q[1] = round(_offsets[1],3) + round(_current_position[1],3)
+
+
+            gcmd.respond_info("Center 1 X: " + str(guessPosition[0]) + " Y: " + str(guessPosition[1]))
+            gcmd.respond_info("Center 2 X: " + str(guessPosition_q[0]) + " Y: " + str(guessPosition_q[1]))
 
             # Move to the new center and get the nozzle position to update the camera
             self.gcode.respond_info("Calibration positional guess: " + str(guessPosition))
@@ -206,9 +226,18 @@ class ktamv:
         # Calibration of the tool
         ##############################
         logging.debug('*** calling kTAMV._calibrate_Tool')
+        _retries = 0
         _not_found_retries = 0
-        _olduv = None
-        _pixel_offsets = [None,None]
+        _uv = [None,None]               # 2D coordinates of where the nozzle is on the camera image
+        _xy = [None,None]               # 3D coordinates of where the nozzle is on the printer in relation to the endstop
+        _cx = 0                         # Normalized X
+        _cy = 0                         # Normalized Y
+        _olduv = None                   # 2D coordinates of where the nozzle was last on the camera image
+        _pixel_offsets = [None,None]    # Offsets from the center of the camera image to where the nozzle is in pixels
+        _frame_width = 0                # Width of the camera image
+        _frame_height = 0               # Height of the camera image
+        _offsets = [None,None]          # Offsets from the center of the camera image
+        _rr = None                      # _Request_Result
 
         try:
             self.pm.ensureHomed()
@@ -259,8 +288,8 @@ class ktamv:
                 _cx,_cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
                 _v = [_cx**2, _cy**2, _cx*_cy, _cx, _cy, 0]
                 _offsets = -1*(0.55*self.transformMatrix.T @ _v)
-                _offsets[0] = np.around(_offsets[0],3)
-                _offsets[1] = np.around(_offsets[1],3)
+                _offsets[0] = round(_offsets[0],3)
+                _offsets[1] = round(_offsets[1],3)
 
                 self.gcode.respond_info('*** Nozzle calibration take: ' + str(_retries) + '.\n X' + str(_xy[0]) + ' Y' + str(_xy[1]) + ' \nUV: ' + str(_uv) + ' old UV: ' + str(_olduv) + ' \nOffsets: ' + str(_offsets))
 
@@ -290,7 +319,18 @@ class ktamv:
                     return
 
         except Exception as e:
-            logging.exception('Error: kTAMV._calibrate_Tool failed: ' + str(e) + ' ' + str(e.__traceback__))
+            logging.exception('_calibrate_nozzle(): self.mpp: ' + str(self.mpp) 
+                              +' _pixel_offsets: ' + str(_pixel_offsets) 
+                              + ' _uv: ' + str(_uv) 
+                              + ' _frame_width: ' + str(_frame_width) 
+                              + ' _frame_height: ' + str(_frame_height)
+                              + ' _offsets: ' + str(_offsets)
+                              + ' _olduv: ' + str(_olduv)
+                              + ' _xy: ' + str(_xy)
+                              + ' _retries: ' + str(_retries)
+                              + ' _not_found_retries: ' + str(_not_found_retries)
+                              + ' _rr: ' + str(_rr))
+            
             raise self.gcode.error(e).with_traceback(e.__traceback__)
 
     def getMMperPixel(self, distance_traveled = [], from_camera_point = [], to_camera_point = []):
@@ -300,12 +340,12 @@ class ktamv:
         logging.debug("to_camera_point: %s" % str(to_camera_point))
         total_distance_traveled = abs(distance_traveled[0]) + abs(distance_traveled[1])
         logging.debug("total_distance_traveled: %s" % str(total_distance_traveled))
-        mpp = np.around(total_distance_traveled /self.getDistance(from_camera_point[0],from_camera_point[1],to_camera_point[0],to_camera_point[1]),3)
+        mpp = round(total_distance_traveled /self.getDistance(from_camera_point[0],from_camera_point[1],to_camera_point[0],to_camera_point[1]),3)
         logging.debug("mm per pixel: %s" % str(mpp))
         logging.debug('*** exiting kTAMV.getMMperPixel')
         return mpp
 
-    def moveRelative_getNozzlePosition(self, X, Y, gcmd):    
+    def moveRelative_and_getNozzlePosition(self, X, Y, gcmd):    
         # Move to calibration location
         self.pm.moveRelative(X = X, Y = Y)
 
@@ -331,9 +371,12 @@ class ktamv:
         logging.debug('*** calling kTAMV._get_average_mpp_from_lists')
         try:
             mpp, new_mm_per_pixels, new_space_coordinates, new_camera_coordinates = utl.get_average_mpp(self.mm_per_pixels, self.space_coordinates, self.camera_coordinates, gcmd)
-            if (len(new_mm_per_pixels) < (len(self.mm_per_pixels) * 0.75)):
+            
+            # Ensure we got a result and that we have at least 75% of the calibration points
+            if mpp is None:
+                raise self.gcode.error("Failed to get average mm per pixel")
+            elif (len(new_mm_per_pixels) < (len(self.mm_per_pixels) * 0.75)):
                 raise self.gcode.error("More than 25% of the calibration points failed, aborting")
-                return None
             
             self.mm_per_pixels = new_mm_per_pixels
             self.space_coordinates = new_space_coordinates
@@ -343,7 +386,6 @@ class ktamv:
             return mpp
         except Exception as e:
             raise self.gcode.error("_get_average_mpp_from_lists failed %s" % str(e)).with_traceback(e.__traceback__)
-            return None
         
     def getDistance(self, x1, y1, x0, y0):
         logging.debug('*** calling kTAMV.getDistance')
@@ -353,8 +395,8 @@ class ktamv:
         y0_float = float(y0)
         x_dist = (x1_float - x0_float) ** 2
         y_dist = (y1_float - y0_float) ** 2
-        retVal = np.sqrt((x_dist + y_dist))
-        returnVal = np.around(retVal,3)
+        retVal = sqrt((x_dist + y_dist))
+        returnVal = round(retVal,3)
         logging.debug('*** exiting kTAMV.getDistance')
         return(returnVal)
 

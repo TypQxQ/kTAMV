@@ -10,6 +10,7 @@ from waitress import serve
 import logging, json
 import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
+from dataclasses import dataclass, field
 
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
@@ -29,7 +30,17 @@ request_result = dict()
 _frame_width = 0
 _frame_height = 0
 
-class kTAMV_RequestResult(dict):
+@dataclass
+class kTAMV_RequestResult:
+    request_id: int
+    position: list[int] = field(default_factory=list)
+    runtime: float = None
+    statuscode: int = None
+    statusmessage: str = None
+    frame_width: int = _frame_width
+    frame_height: int = _frame_height
+
+class old_kTAMV_RequestResult(dict):
     def __init__(self, request_id, position = None, runtime = None, statuscode = None, statusmessage = None, frame_width = _frame_width, frame_height = _frame_height):
         dict.__init__(self, {
             "request_id": request_id,

@@ -1,5 +1,6 @@
 # kTAMV Utility Functions
 import math, copy, statistics, requests, json, time
+from statistics import mean
 import numpy as np
 import logging
 
@@ -50,7 +51,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
         # Calculate the average mm per pixel and the standard deviation
         mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
         
-        __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
+        __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(round(mpps_std_dev)), str(round(mpp,3)), str(round((mpps_std_dev / mpp)*100,3)))) + " %."
 
         # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
         if mpps_std_dev / mpp > 0.1:
@@ -78,7 +79,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
             # Calculate the average mm per pixel and the standard deviation
             mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
 
-            gcmd.respond.info("Recalculated std. dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2)))) + " %."
+            gcmd.respond_info(("Recalculated std dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(round(mpps_std_dev,3)), str(mpp), str(round((mpps_std_dev / mpp)*100,3)))) + " %.")
 
             # ----------------- 3rd recalculation -----------------
             # Exclude the values that are more than 2 standard deviations from the mean and recalculate
@@ -90,7 +91,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
 
             # Calculate the average mm per pixel and the standard deviation
             mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-
+            
             # ----------------- 4th recalculation -----------------
             # Exclude any other value that deviates more than 25% from mean value and recalculate
             for i in reversed(range(len(mpps))):
@@ -100,17 +101,17 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
                 
             # Calculate the average mm per pixel and the standard deviation
             mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-
+            
             # Final check if standard deviation is still too high
-            gcmd.respond_info("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(np.around((mpps_std_dev / mpp)*100,2))) + " %.")
+            gcmd.respond_info(("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(round((mpps_std_dev / mpp)*100,2)))) + " %.")
             gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
 
             if mpps_std_dev / mpp > 0.2 or len(mpps) < 5:
-                gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
+                # gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
                 return None
             else:
                 gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
-                logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(mpp), str(mpps_std_dev)))
+                # logging.debug("Average mm per pixel: %s with a standard deviation of %s" % (str(mpp), str(mpps_std_dev)))
         else:
             gcmd.respond_info(__mpp_msg)
 
@@ -124,7 +125,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
 def _get_std_dev_and_mean(mpps : list):
     # Calculate the average mm per pixel and the standard deviation
     mpps_std_dev = statistics.stdev(mpps)
-    mpp = np.around(np.mean(mpps),3)
+    mpp = round(mean(mpps),3)
     return mpps_std_dev, mpp
 
 def normalize_coords(coords, frame_width, frame_height):
@@ -171,13 +172,16 @@ class kTAMV_pm:
     def moveRelative(self, X=0, Y=0, Z=0, moveSpeed=__defaultSpeed, protected=False):
         # send calling to log
         logging.debug('*** calling kTAMV_pm.moveRelative')
-        logging.debug('Requesting a move by a position of: X: ' + str(X) + ' Y: ' + str(Y) + ' Z: ' + str(Z) + ' at speed: ' + str(moveSpeed) + ' protected: ' + str(protected))
+        self.gcode.respond_info('Requesting a move by a position of: X: ' + str(X) + ' Y: ' + str(Y) + ' Z: ' + str(Z) + ' at speed: ' + str(moveSpeed) + ' protected: ' + str(protected))
 
         # Ensure that the printer is homed before continuing
         self.ensureHomed()
         
         _current_position = self.get_gcode_position()
-        _new_position = [_current_position[0] + X, _current_position[1] + Y, _current_position[2] + Z]
+        _new_position = [_current_position[0] + X, _current_position[1] + Y]
+        self.gcode.respond_info('Current absolute position: ' + str(_current_position))
+        self.gcode.respond_info('New absolute position to move to: ' + str(_new_position))
+        
         logging.debug('Current absolute position: ' + str(_current_position))
         logging.debug('New absolute position to move to: ' + str(_new_position))
         
@@ -207,9 +211,8 @@ class kTAMV_pm:
 
     # Using G1 command to move the toolhead to the position instead of using the toolhead.move() function because G1 will use the tool's offset.
     def moveAbsoluteToArray(self, pos_array, moveSpeed=__defaultSpeed):
-        gcode = "G1 "
+        gcode = "G90\nG1 "
         for i in range(len(pos_array)):
-            debug = "moveAbsoluteToArray pos_array[%s] = %s" % (i, pos_array[i])
             if i == 0:
                 gcode += "X%s " % (pos_array[i])
             elif i == 1:
@@ -218,7 +221,7 @@ class kTAMV_pm:
                 gcode += "Z%s " % (pos_array[i])
         gcode += "F%s " % (moveSpeed)
         
-        # self.log.trace("G1 command: %s" % gcode)
+        self.gcode.respond_info("G1 command: %s" % gcode)
         self.gcode.run_script_from_command(gcode)
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.wait_moves()
