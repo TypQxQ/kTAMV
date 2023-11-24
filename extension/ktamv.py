@@ -6,9 +6,8 @@ import logging
 class ktamv:
     def __init__(self, config):
         # Load config values
-        self.camera_address = config.get('nozzle_cam_url')
+        self.camera_url = config.get('nozzle_cam_url')
         self.server_url = config.get('server_url')
-        self.save_image = config.getboolean('save_image', False)
         self.speed = config.getfloat('move_speed', 50., above=10.)
         self.calib_iterations = config.getint('calib_iterations', 1, minval=1, maxval=25)
         self.calib_value = config.getfloat('calib_value', 1.0, above=0.25)
@@ -38,9 +37,20 @@ class ktamv:
         self.gcode.register_command('KTAMV_MOVE_TO_ORIGIN', self.cmd_MOVE_TO_ORIGIN, desc=self.cmd_MOVE_TO_ORIGIN_help)
         self.gcode.register_command('KTAMV_SIMPLE_NOZZLE_POSITION', self.cmd_SIMPLE_NOZZLE_POSITION, desc=self.cmd_SIMPLE_NOZZLE_POSITION_help)
         self.gcode.register_command('KTAMV_TEST', self.cmd_SIMPLE_TEST, desc=self.cmd_SIMPLE_TEST_help)
+        self.gcode.register_command('KTAMV_SEND_SERVER_CFG', self.cmd_SEND_SERVER_CFG, desc=self.cmd_SEND_SERVER_CFG_help)
 
-    cmd_SET_CENTER_help = "Saves the center position for offset calculations based on the current toolhead position."
     
+    cmd_SEND_SERVER_CFG_help = "Send the server configuration to the server, i.e. the nozzle camera url"
+    def cmd_SEND_SERVER_CFG(self, gcmd):
+        try:
+            _camera_url = gcmd.get('CAMERA_URL', self.camera_url)
+            rr = utl.send_server_cfg(self.server_url, camera_url = _camera_url)
+            gcmd.respond_info("Sent server configuration to server")
+            gcmd.respond_info("Server response: %s" % str(rr))
+        except Exception as e:
+            raise self.gcode.error("Failed to send server configuration to server, got error: %s" % str(e))
+        
+    cmd_SET_CENTER_help = "Saves the center position for offset calculations based on the current toolhead position."
     def cmd_SET_CENTER(self, gcmd):
         self.cp = self.pm.get_raw_position()
         self.cp = (float(self.cp[0]), float(self.cp[1]))
@@ -150,7 +160,7 @@ class ktamv:
 
                 # If this is not the last item
                 if i < (len(self.calibrationCoordinates)-1):
-                    gcmd.respond_info("Moving back to starting position= X: %s Y: %s" % (str(-self.calibrationCoordinates[i][0]), str(-self.calibrationCoordinates[i][1])))
+                    # gcmd.respond_info("Moving back to starting position= X: %s Y: %s" % (str(-self.calibrationCoordinates[i][0]), str(-self.calibrationCoordinates[i][1])))
                     # Move back to center but do not save the calibration point because it would be the same as the first and double the errors if it is wrong
                     self.pm.moveRelative(X = -self.calibrationCoordinates[i][0], Y = -self.calibrationCoordinates[i][1])
 
@@ -173,7 +183,7 @@ class ktamv:
                 mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
                 # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                 self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                self.gcode.respond_info("Calibrated camera step %s of %s: mm/pixel found: %s" % (str(i+1), str(len(self.calibrationCoordinates)), str(mpp)))
+                self.gcode.respond_info("Calibrated camera center: mm/pixel found: %.4f" % (mpp))
 
             # 
             # All calibration points are done, calculate the average mm per pixel
@@ -195,24 +205,24 @@ class ktamv:
             
             # define camera center in machine coordinate space
             self.newCenter = self.transformMatrix.T @ np.array([0, 0, 0, 0, 0, 1])
-            guessPosition[0]= round(self.newCenter[0],3)
-            guessPosition[1]= round(self.newCenter[1],3)
+            old_guessPosition=[1,1]
+            old_guessPosition[0]= round(self.newCenter[0],3)
+            old_guessPosition[1]= round(self.newCenter[1],3)
 
             _current_position = self.pm.get_gcode_position()
 
-            guessPosition_q=[1,1]
             _cx,_cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
             _v = [_cx**2, _cy**2, _cx*_cy, _cx, _cy, 0]
             _offsets = -1*(0.55*self.transformMatrix.T @ _v)
-            guessPosition_q[0] = round(_offsets[0],3) + round(_current_position[0],3)
-            guessPosition_q[1] = round(_offsets[1],3) + round(_current_position[1],3)
+            guessPosition[0] = round(_offsets[0],3) + round(_current_position[0],3)
+            guessPosition[1] = round(_offsets[1],3) + round(_current_position[1],3)
 
 
             gcmd.respond_info("Center 1 X: " + str(guessPosition[0]) + " Y: " + str(guessPosition[1]))
-            gcmd.respond_info("Center 2 X: " + str(guessPosition_q[0]) + " Y: " + str(guessPosition_q[1]))
+            gcmd.respond_info("Center 2 X: " + str(old_guessPosition[0]) + " Y: " + str(old_guessPosition[1]))
 
             # Move to the new center and get the nozzle position to update the camera
-            self.gcode.respond_info("Calibration positional guess: " + str(guessPosition))
+            # self.gcode.respond_info("Calibration positional guess: " + str(guessPosition))
             self.pm.moveAbsolute(X = guessPosition[0], Y = guessPosition[1])
             _rr = utl.get_nozzle_position(self.server_url, self.reactor)
 

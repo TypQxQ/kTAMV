@@ -1,8 +1,20 @@
 # kTAMV Utility Functions
-import math, copy, statistics, requests, json, time
-from statistics import mean
+import requests, json, time
+from statistics import mean, stdev
 import numpy as np
 import logging
+
+import typing
+import urllib.error
+import urllib.parse
+import urllib.request
+from email.message import Message
+
+def send_server_cfg(server_url, *args, **kwargs):
+    rr = server_request(server_url + "/set_camera_url", data=kwargs, method="POST")
+    return rr.body
+    return
+    
 
 def get_nozzle_position(server_url, reactor):
     ##############################
@@ -50,8 +62,8 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
     try:
         # Calculate the average mm per pixel and the standard deviation
         mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-        
-        __mpp_msg = ("Standard deviation of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(round(mpps_std_dev)), str(round(mpp,3)), str(round((mpps_std_dev / mpp)*100,3)))) + " %."
+        gcmd.respond_info("TST")
+        __mpp_msg = ("Standard deviation of mm/pixel is %.4f for a calculated mm/pixel of %.4f. \nPossible deviation of %.4f" % (mpps_std_dev, mpp, ((mpps_std_dev / mpp)*100) )) + " %."
 
         # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
         if mpps_std_dev / mpp > 0.1:
@@ -79,7 +91,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
             # Calculate the average mm per pixel and the standard deviation
             mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
 
-            gcmd.respond_info(("Recalculated std dev. of mm/pixel is %s for a calculated mm/pixel of %s. \nPossible deviation of %s" % (str(round(mpps_std_dev,3)), str(mpp), str(round((mpps_std_dev / mpp)*100,3)))) + " %.")
+            gcmd.respond_info(("Recalculated std dev. of mm/pixel is %.4f for a calculated mm/pixel of %.4f. \nPossible deviation of %.4f" % (mpps_std_dev, mpp, ((mpps_std_dev / mpp)*100))) + " %.")
 
             # ----------------- 3rd recalculation -----------------
             # Exclude the values that are more than 2 standard deviations from the mean and recalculate
@@ -103,11 +115,11 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
             mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
             
             # Final check if standard deviation is still too high
-            gcmd.respond_info(("Final recalculated standard deviation of mm per pixel is %s for a mm per pixel of %s. This gives an error margin of %s" % (str(mpps_std_dev), str(mpp), str(round((mpps_std_dev / mpp)*100,2)))) + " %.")
-            gcmd.respond_info("Final recalculated mm per pixel is calculated from %s values" % str(len(mpps)))
+            gcmd.respond_info(("Final recalculated standard deviation of mm per pixel is %.4f for a mm per pixel of %.4f. This gives an error margin of %.4f" % (mpps_std_dev, mpp, ((mpps_std_dev / mpp)*100))) + " %.")
+            gcmd.respond_info("Final recalculated mm per pixel is calculated from %.4f values" % (mpp))
 
             if mpps_std_dev / mpp > 0.2 or len(mpps) < 5:
-                # gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
+                gcmd.respond_info("Standard deviation is still too high. Calibration failed.")
                 return None
             else:
                 gcmd.respond_info("Standard deviation is now within acceptable range. Calibration succeeded.")
@@ -124,7 +136,7 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
 
 def _get_std_dev_and_mean(mpps : list):
     # Calculate the average mm per pixel and the standard deviation
-    mpps_std_dev = statistics.stdev(mpps)
+    mpps_std_dev = stdev(mpps)
     mpp = round(mean(mpps),3)
     return mpps_std_dev, mpp
 
@@ -172,15 +184,15 @@ class kTAMV_pm:
     def moveRelative(self, X=0, Y=0, Z=0, moveSpeed=__defaultSpeed, protected=False):
         # send calling to log
         logging.debug('*** calling kTAMV_pm.moveRelative')
-        self.gcode.respond_info('Requesting a move by a position of: X: ' + str(X) + ' Y: ' + str(Y) + ' Z: ' + str(Z) + ' at speed: ' + str(moveSpeed) + ' protected: ' + str(protected))
+        # self.gcode.respond_info('Requesting a move by a position of: X: ' + str(X) + ' Y: ' + str(Y) + ' Z: ' + str(Z) + ' at speed: ' + str(moveSpeed) + ' protected: ' + str(protected))
 
         # Ensure that the printer is homed before continuing
         self.ensureHomed()
         
         _current_position = self.get_gcode_position()
         _new_position = [_current_position[0] + X, _current_position[1] + Y]
-        self.gcode.respond_info('Current absolute position: ' + str(_current_position))
-        self.gcode.respond_info('New absolute position to move to: ' + str(_new_position))
+        # self.gcode.respond_info('Current absolute position: ' + str(_current_position))
+        # self.gcode.respond_info('New absolute position to move to: ' + str(_new_position))
         
         logging.debug('Current absolute position: ' + str(_current_position))
         logging.debug('New absolute position to move to: ' + str(_new_position))
@@ -221,7 +233,7 @@ class kTAMV_pm:
                 gcode += "Z%s " % (pos_array[i])
         gcode += "F%s " % (moveSpeed)
         
-        self.gcode.respond_info("G1 command: %s" % gcode)
+        # self.gcode.respond_info("G1 command: %s" % gcode)
         self.gcode.run_script_from_command(gcode)
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.wait_moves()
@@ -240,3 +252,72 @@ class kTAMV_pm:
         raw_position = gcode_move.get_status()['position']
         
         return [raw_position.x, raw_position.y, raw_position.z]
+
+
+class Server_Response(typing.NamedTuple):
+    body: str
+    headers: Message
+    status: int
+    error_count: int = 0
+
+    def json(self) -> typing.Any:
+        try:
+            output = json.loads(self.body)
+        except json.JSONDecodeError:
+            output = ""
+        return output
+        
+def server_request(
+    url: str,
+    data: dict = None,
+    params: dict = None,
+    headers: dict = None,
+    method: str = "GET",
+    data_as_json: bool = True,
+    error_count: int = 0,
+) -> Server_Response:
+    if not url.casefold().startswith("http"):
+        raise urllib.error.URLError("Incorrect and possibly insecure protocol in url")
+    method = method.upper()
+    request_data = None
+    headers = headers or {}
+    data = data or {}
+    params = params or {}
+    headers = {"Accept": "application/json", **headers}
+
+    if method == "GET":
+        params = {**params, **data}
+        data = None
+
+    if params:
+        url += "?" + urllib.parse.urlencode(params, doseq=True, safe="/")
+
+    if data:
+        if data_as_json:
+            request_data = json.dumps(data).encode()
+            headers["Content-Type"] = "application/json; charset=UTF-8"
+        else:
+            request_data = urllib.parse.urlencode(data).encode()
+
+    httprequest = urllib.request.Request(
+        url, data=request_data, headers=headers, method=method
+    )
+
+    try:
+        with urllib.request.urlopen(httprequest) as httpresponse:
+            response = Server_Response(
+                headers=httpresponse.headers,
+                status=httpresponse.status,
+                body=httpresponse.read().decode(
+                    httpresponse.headers.get_content_charset("utf-8")
+                ),
+            )
+    except urllib.error.HTTPError as e:
+        response = Server_Response(
+            body=str(e.reason),
+            headers=e.headers,
+            status=e.code,
+            error_count=error_count + 1,
+        )
+
+    return response

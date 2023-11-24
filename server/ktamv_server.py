@@ -1,5 +1,6 @@
 # import the Flask module, the MJPEGResponse class, and the os module
 import datetime, io, time, random, os, numpy as np, threading
+import traceback
 from flask import jsonify
 from flask import Flask, request, send_file
 from flask import send_from_directory, send_file
@@ -24,14 +25,16 @@ app = Flask(__name__)
 processed_frame = None
 # Define a global variable to store the camera path (e.g. /dev/video0)
 camera_url = None
-camera_url = 'http://192.168.1.204/webcam2/stream'
+# camera_url = 'http://192.168.1.204/webcam2/stream'
 #Define a global variable to store a key-value pair of the request id and the result
-request_result = dict()
+request_results = dict()
 _frame_width = 0
 _frame_height = 0
 
+_debuginglog = ""
+
 @dataclass
-class kTAMV_RequestResult:
+class kTAMV_FrameRequestResult:
     request_id: int
     position: list[int] = field(default_factory=list)
     runtime: float = None
@@ -40,67 +43,71 @@ class kTAMV_RequestResult:
     frame_width: int = _frame_width
     frame_height: int = _frame_height
 
-class old_kTAMV_RequestResult(dict):
-    def __init__(self, request_id, position = None, runtime = None, statuscode = None, statusmessage = None, frame_width = _frame_width, frame_height = _frame_height):
-        dict.__init__(self, {
-            "request_id": request_id,
-            "position": position,
-            "runtime": runtime,
-            "statuscode": statuscode,
-            "statusmessage": statusmessage,
-            "frame_width": frame_width,
-            "frame_height": frame_height
-        })
-
 @app.route('/set_camera_url', methods=['POST'])
-def set_camera_url(self):
-    # Get the camera path from the JSON object
-    camera_url = None
+def set_camera_url():
     try:
-        data = json.loads(request.data)
-        camera_url = data.get('camera_url')
-    except json.JSONDecodeError:
-        pass
+        # Get the camera path from the JSON object
+        _camera_url = None
+        global _debuginglog
+        # _debuginglog += "request.data: " + str(request.data) + "<br>"
+        try:
+            data = json.loads(request.data)
+            _camera_url = data.get('camera_url')
+        except json.JSONDecodeError:
+            pass
 
-    if camera_url is None:
-        return "Camera path not found in JSON"
-    else:
-        # Return code 200 to web browser
-        return "Camera path set to " + camera_url, 200
-        
+        if _camera_url is None:
+            return "Camera path not found in JSON", 400
+        else:
+            if _camera_url.casefold().startswith("http://") or _camera_url.casefold().startswith("https://"):
+                global camera_url
+                camera_url = _camera_url
+                # Return code 200 to web browser
+                return "Camera path set to " + camera_url, 200
+            else:
+                return "Camera path must start with http:// or https://", 400
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 # Called from DetectionManager to put the frame in the global variable so it can be sent to the web browser
 def put_frame(frame):
+    try:
+        # Get a string with the current date and time
+        current_datetime = datetime.datetime.now()
+        current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
 
-    # Get a string with the current date and time
-    current_datetime = datetime.datetime.now()
-    current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
-
-    # Convert the frame to a PIL Image
-    temp_frame = Image.fromarray(frame)
-    # Draw the date on the image
-    temp_frame : Image.Image = drawOnFrame(temp_frame, "Updated: " + current_datetime_str)
-    # Convert the image to a byteio object (file-like object) encoded as JPEG
-    byteio = io.BytesIO()
-    temp_frame.save(byteio, format='JPEG')
-    byteio.seek(0)
-    # Write the frame to the global variable, so init it as global and then write to it
-    global processed_frame, _frame_width, _frame_height
-    processed_frame = byteio.read()
-    _frame_width, _frame_height = temp_frame.size
-    temp_frame.close()
-    
-    # Alternative that is not used but one row for every step if not need to add text.
-    # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
+        # Convert the frame to a PIL Image
+        temp_frame = Image.fromarray(frame)
+        # Draw the date on the image
+        temp_frame : Image.Image = drawOnFrame(temp_frame, "Updated: " + current_datetime_str)
+        # Convert the image to a byteio object (file-like object) encoded as JPEG
+        byteio = io.BytesIO()
+        temp_frame.save(byteio, format='JPEG')
+        byteio.seek(0)
+        # Write the frame to the global variable, so init it as global and then write to it
+        global processed_frame, _frame_width, _frame_height
+        processed_frame = byteio.read()
+        _frame_width, _frame_height = temp_frame.size
+        temp_frame.close()
+        
+        # Alternative that is not used but one row for every step if not need to add text.
+        # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 @app.route('/getAllReqests')
 def getAllReqests():
-    return jsonify(request_result)
+    try:
+        return jsonify(request_results)
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+
 
 @app.route('/')
-def default():
+def index():
     file_path = 'logs/kTAMV_Server.log'
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
     content += "Frame width: " + str(_frame_width) + ", Frame height: " + str(_frame_height) + "<br>"
+    content += "Debuging log:<br>" + _debuginglog + "<br>"
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content += file.read()
@@ -118,93 +125,105 @@ def default():
 
 @app.route('/getReqest', methods=['GET', 'POST'])
 def getReqest():
-    # Get the request id from the URL
-    request_id = request.args.get("request_id", type=int, default=None)
-    
-    # Return the request result if it exists, otherwise return a 404
     try:
-        return jsonify(request_result[request_id])
-    except KeyError:
-        return jsonify(kTAMV_RequestResult(request_id, None, None, 404, "Request not found"))
+        # Get the request id from the URL
+        request_id = request.args.get("request_id", type=int, default=None)
+        
+        # Return the request result if it exists, otherwise return a 404
+        try:
+            return jsonify(request_results[request_id])
+        except KeyError:
+            return jsonify(kTAMV_FrameRequestResult(request_id, None, None, 404, "Request not found"))
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 
 @app.route('/burstNozzleDetection')
 def burstNozzleDetection():
-    start_time = time.time()  # Get the current time
-    
-    # Get a random request id
-    request_id = random.randint(0, 1000000)
-    request_result[request_id] = kTAMV_RequestResult(request_id, None, None, 202, "Accepted")
+    try:
+        start_time = time.time()  # Get the current time
+        
+        # Get a random request id
+        request_id = random.randint(0, 1000000)
+        request_results[request_id] = kTAMV_FrameRequestResult(request_id, None, None, 202, "Accepted")
 
-    def do_work():
-        CV_TIME_OUT = 20 #5 # If no nozzle found in this time, timeout the function
-        CV_MIN_MATCHES = 3 # Minimum amount of matches to confirm toolhead position after a move
-        CV_XY_TOLERANCE = 1 # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
+        def do_work():
+            CV_TIME_OUT = 20 #5 # If no nozzle found in this time, timeout the function
+            CV_MIN_MATCHES = 3 # Minimum amount of matches to confirm toolhead position after a move
+            CV_XY_TOLERANCE = 1 # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
 
-        detection_manager = kTAMV_DetectionManager.kTAMV_DetectionManager(camera_url = camera_url)
+            detection_manager = kTAMV_DetectionManager.kTAMV_DetectionManager(camera_url = camera_url)
 
-        position = detection_manager.recursively_find_nozzle_position(put_frame, request_id, 1)
+            position = detection_manager.recursively_find_nozzle_position(put_frame, request_id, 1)
 
-        if position is None:
-            request_result_object = kTAMV_RequestResult(request_id, None, time.time() - start_time, 404, "No nozzle found")
-        else:
-            request_result_object = kTAMV_RequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK", _frame_width, _frame_height)
+            if position is None:
+                request_result_object = kTAMV_FrameRequestResult(request_id, None, time.time() - start_time, 404, "No nozzle found")
+            else:
+                request_result_object = kTAMV_FrameRequestResult(request_id, position.tolist(), time.time() - start_time, 200, "OK", _frame_width, _frame_height)
 
-        global request_result
-        request_result[request_id] = request_result_object
+            global request_results
+            request_results[request_id] = request_result_object
 
-    # thread = threading.Thread(target=do_work, kwargs={'value': request.args.get('value', 20)})
-    thread = threading.Thread(target=do_work)
-    thread.start()
+        # thread = threading.Thread(target=do_work, kwargs={'value': request.args.get('value', 20)})
+        thread = threading.Thread(target=do_work)
+        thread.start()
 
-    return jsonify(request_result[request_id])
+        return jsonify(request_results[request_id])
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 def drawOnFrame(usedFrame, text):
-    # usedFrame = copy.deepcopy(image)
-    
-    # Create a draw object
-    draw = ImageDraw.Draw(usedFrame)
+    try:
+        # usedFrame = copy.deepcopy(image)
+        
+        # Create a draw object
+        draw = ImageDraw.Draw(usedFrame)
 
-    # Choose a font
-    font_path = fm.findfont(fm.FontProperties(family='arial'))
-    font = ImageFont.truetype(font_path, 32)
-    
-    # Draw the date on the image
-    draw.text((10, 10), text, font=font, fill=(255, 255, 255))
+        # Choose a font
+        font_path = fm.findfont(fm.FontProperties(family='arial'))
+        font = ImageFont.truetype(font_path, 32)
+        
+        # Draw the date on the image
+        draw.text((10, 10), text, font=font, fill=(255, 255, 255))
 
-    return usedFrame
+        return usedFrame
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 @app.route('/image')
 def image():
-    global processed_frame
+    try:
+        global processed_frame
 
-    # If no image has been recieved since start, load a standby image
-    if processed_frame is None:
-        standbyImage = Image.open("standby.jpg", mode='r')
-        
-        # read the file content as bytes
-        standbyImage.load()
+        # If no image has been recieved since start, load a standby image
+        if processed_frame is None:
+            standbyImage = Image.open("standby.jpg", mode='r')
+            
+            # read the file content as bytes
+            standbyImage.load()
 
-        # Draw the text on the image
-        standbyImage = drawOnFrame(standbyImage, "No image recieved since start." )
+            # Draw the text on the image
+            standbyImage = drawOnFrame(standbyImage, "No image recieved since start." )
 
-        # Save the image to a byte array of JPEG format
-        img_io = io.BytesIO()
-        standbyImage.save(img_io, 'JPEG')
-        img_io.seek(0)
-        processed_frame = img_io.read()
+            # Save the image to a byte array of JPEG format
+            img_io = io.BytesIO()
+            standbyImage.save(img_io, 'JPEG')
+            img_io.seek(0)
+            processed_frame = img_io.read()
 
-    # Get a byte stream of the image
-    processed_frame_file= io.BytesIO(processed_frame)
-    processed_frame_file.seek(0)
+        # Get a byte stream of the image
+        processed_frame_file= io.BytesIO(processed_frame)
+        processed_frame_file.seek(0)
 
-    # Send the image to the web browser
-    return send_file(processed_frame_file, mimetype='image/jpeg')
+        # Send the image to the web browser
+        return send_file(processed_frame_file, mimetype='image/jpeg')
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 # Run the app on the specified port
 if __name__ == "__main__":
 
-    # logger = logging.getLogger(__name__)
+    logger = logging.getLogger(__name__)
 
     # Create an argument parser
     parser = argparse.ArgumentParser()
@@ -214,7 +233,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # Run the app with the specified port
-    #app.run(host='0.0.0.0', port=args.port)
-    serve(app, host='0.0.0.0', port=args.port)
+    app.run(host='0.0.0.0', port=args.port, debug=True)
+    # serve(app, host='0.0.0.0', port=args.port)
 
     
