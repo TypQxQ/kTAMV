@@ -1,5 +1,4 @@
-import cv2
-import numpy as np
+import cv2, numpy as np
 import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 
@@ -7,17 +6,18 @@ from requests.exceptions import InvalidURL, HTTPError, RequestException, Connect
 # import time, os, copy, io, datetime
 
 import logging
-
+ 
 class kTAMV_io:
-    def __init__(self, camera_url, server_url = None, save_image = False):
+    def __init__(self, log, camera_url, save_image = False):
+        self.log = log
+        self.log(' *** initializing kTAMV_io **** ')
         self.camera_url = camera_url
-        self.server_url = server_url
         self.save_image = save_image
         self.session = requests.Session()
+        self.log(' *** initialized kTAMV_io with camera_url = %s, save_image = %s **** ' % (str(camera_url), str(save_image)))
         
 
     def can_read_stream(self, printer):
-        # TODO: Clean this up and return actual errors instead of this...stuff...
         try:
             with self.session.get(self.camera_url) as _:
                 return True
@@ -29,16 +29,18 @@ class kTAMV_io:
             raise printer.config_error("Nozzle camera request failed %s" % str(e))
 
     def open_stream(self):
-        # TODO: Raise error, stream already running 
         self.session = requests.Session()
 
     def get_single_frame(self):
+        self.log(' *** calling get_single_frame **** ')
+        
         if self.session is None: 
-            # TODO: Raise error: stream is not running
-            return None, None
+            self.log("Stream is not running")
+            raise Exception("Stream is not running")
 
         try:
             with self.session.get(self.camera_url, stream=True) as stream:
+                self.log(' stream.ok = %s ' % stream.ok)
                 if stream.ok:
                     chunk_size = 1024
                     bytes_ = b''
@@ -54,24 +56,10 @@ class kTAMV_io:
                             return image
             return None, None
         except Exception as e:
-            logging.error("Failed to get single frame from stream %s" % str(e))
+            self.log("Failed to get single frame from stream %s" % str(e))
             # raise Exception("Failed to get single frame from stream %s" % str(e))
 
     def close_stream(self):
         if self.session is not None:
             self.session.close()
             self.session = None
-
-    # def textOnFrame(image, text : str):
-    #     usedFrame = copy.deepcopy(image)
-        
-    #     # Create a draw object
-    #     draw = ImageDraw.Draw(usedFrame)
-
-    #     # Choose a font
-    #     font = ImageFont.truetype("arial.ttf", 32)
-        
-    #     # Draw the date on the image
-    #     draw.text((10, 10), text, font=font, fill=(255, 255, 255))
-
-    #     return usedFrame

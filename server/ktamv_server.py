@@ -13,7 +13,7 @@ import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 from dataclasses import dataclass, field
 
-logdebug = ""
+__LOGDEBUG = ""
 
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
@@ -33,7 +33,7 @@ request_results = dict()
 _frame_width = 0
 _frame_height = 0
 
-
+ 
 @dataclass
 class kTAMV_FrameRequestResult:
     request_id: int
@@ -46,11 +46,11 @@ class kTAMV_FrameRequestResult:
 
 @app.route('/calculateCameraToSpaceMatrix', methods=['POST'])
 def calculateCameraToSpaceMatrix():
-    global logdebug
+    
     try:
         # Get the camera path from the JSON object
         _calibration_points = None
-        # logdebug += "request.data: " + str(request.data) + "<br>"
+        # log("request.data: " + str(request.data))
         try:
             data = json.loads(request.data)
             _calibration_points = data.get('calibration_points')
@@ -73,20 +73,18 @@ def calculateCameraToSpaceMatrix():
                 transformMatrix = transform[0]
                 # TODO: Unsure if this is correct
                 return jsonify(transformMatrix.tolist())
-
-
     except Exception as e:
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 
 @app.route('/set_camera_url', methods=['POST'])
 def set_camera_url():
-    global logdebug
+    
     try:
-        logdebug += "*** calling set_camera_url ***<br>"
+        log("*** calling set_camera_url ***")
         # Get the camera path from the JSON object
         _camera_url = None
-        # logdebug += "request.data: " + str(request.data) + "<br>"
+        # log("request.data: " + str(request.data))
         try:
             data = json.loads(request.data)
             _camera_url = data.get('camera_url')
@@ -100,16 +98,16 @@ def set_camera_url():
                 global camera_url
                 camera_url = _camera_url
                 # Return code 200 to web browser
-                logdebug += f"*** end of set_camera_url (set to {camera_url}) ***<br>"
+                log(f"*** end of set_camera_url (set to {camera_url}) ***<br>")
                 return "Camera path set to " + camera_url, 200
             else:
-                logdebug += "*** end of set_camera_url (not set) ***<br>"
+                log("*** end of set_camera_url (not set) ***<br>")
                 return "Camera path must start with http:// or https://", 400
     except Exception as e:
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 # Called from DetectionManager to put the frame in the global variable so it can be sent to the web browser
 def put_frame(frame):
-    global logdebug
+    
     try:
         # Get a string with the current date and time
         current_datetime = datetime.datetime.now()
@@ -132,15 +130,15 @@ def put_frame(frame):
         # Alternative that is not used but one row for every step if not need to add text.
         # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
     except Exception as e:
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 @app.route('/getAllReqests')
 def getAllReqests():
-    global logdebug
+    
     try:
         return jsonify(request_results)
     except Exception as e:
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 
 @app.route('/')
@@ -148,7 +146,7 @@ def index():
     file_path = 'logs/kTAMV_Server.log'
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
     content += "Frame width: " + str(_frame_width) + ", Frame height: " + str(_frame_height) + "<br>"
-    content += "Debuging log:<br>" + logdebug + "<br>"
+    content += "Debuging log:<br>" + __LOGDEBUG + "<br>"
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content += file.read()
@@ -166,7 +164,7 @@ def index():
 
 @app.route('/getReqest', methods=['GET', 'POST'])
 def getReqest():
-    global logdebug
+    
     try:
         # Get the request id from the URL
         request_id = request.args.get("request_id", type=int, default=None)
@@ -177,26 +175,33 @@ def getReqest():
         except KeyError:
             return jsonify(kTAMV_FrameRequestResult(request_id, None, None, 404, "Request not found"))
     except Exception as e:
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 
-@app.route('/burstNozzleDetection')
-def burstNozzleDetection():
+@app.route('/getNozzlePosition')
+def getNozzlePosition():
     try:
+        log("*** calling burstNozzleDetection ***")
         start_time = time.time()  # Get the current time
         
         # Get a random request id
         request_id = random.randint(0, 1000000)
         request_results[request_id] = kTAMV_FrameRequestResult(request_id, None, None, 202, "Accepted")
+        log("request_results: " + str(request_results))
 
         def do_work():
-            CV_TIME_OUT = 20 #5 # If no nozzle found in this time, timeout the function
-            CV_MIN_MATCHES = 3 # Minimum amount of matches to confirm toolhead position after a move
+            CV_TIMEOUT = 20     #5 # If no nozzle found in this time, timeout the function
+            CV_MIN_MATCHES = 3  # Minimum amount of matches to confirm toolhead position after a move
             CV_XY_TOLERANCE = 1 # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
 
-            detection_manager = kTAMV_DetectionManager.kTAMV_DetectionManager(camera_url = camera_url)
+            log("*** calling do_work ***")
+            detection_manager = kTAMV_DetectionManager.kTAMV_DetectionManager(camera_url, log)
+            
+            log("detection_manager: " + str(detection_manager))
 
-            position = detection_manager.recursively_find_nozzle_position(put_frame, request_id, 1)
+            position = detection_manager.recursively_find_nozzle_position(put_frame, CV_MIN_MATCHES, CV_TIMEOUT, CV_XY_TOLERANCE, log)
+            
+            log("position: " + str(position))
 
             if position is None:
                 request_result_object = kTAMV_FrameRequestResult(request_id, None, time.time() - start_time, 404, "No nozzle found")
@@ -205,15 +210,18 @@ def burstNozzleDetection():
 
             global request_results
             request_results[request_id] = request_result_object
+            
+            log("*** end of do_work ***")
 
         # thread = threading.Thread(target=do_work, kwargs={'value': request.args.get('value', 20)})
         thread = threading.Thread(target=do_work)
         thread.start()
-
+        
+        log("*** end of burstNozzleDetection ***<br>")
         return jsonify(request_results[request_id])
     except Exception as e:
-        global logdebug
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 def drawOnFrame(usedFrame, text):
     try:
@@ -231,8 +239,8 @@ def drawOnFrame(usedFrame, text):
 
         return usedFrame
     except Exception as e:
-        global logdebug
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 @app.route('/image')
 def image():
@@ -262,8 +270,20 @@ def image():
         # Send the image to the web browser
         return send_file(processed_frame_file, mimetype='image/jpeg')
     except Exception as e:
-        global logdebug
-        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
+
+def log_clear():
+    global __LOGDEBUG
+    __LOGDEBUG = ""
+    
+def log(message : str):
+    global __LOGDEBUG
+    __LOGDEBUG += message + "<br>"
+    
+def log_get():
+    global __LOGDEBUG
+    return __LOGDEBUG
 
 # Run the app on the specified port
 if __name__ == "__main__":

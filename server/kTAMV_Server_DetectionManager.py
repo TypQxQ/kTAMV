@@ -14,31 +14,33 @@ class kTAMV_DetectionManager:
     
     ##### Setup functions
     # init function
-    def __init__(self, camera_url, *args, **kwargs):
+    def __init__(self, camera_url, log, *args, **kwargs):
+        self.log = log
+
         # send calling to log
-        
-        logging.debug('*** calling DetectionManager.__init__')
+        self.log('*** calling DetectionManager.__init__')
 
         # This are the variables that will be used to store the calibration points.
         self.uv = [None, None]
         
         # The already initialized io object.
-        self.__io = kTAMV_Server_io.kTAMV_io(camera_url=camera_url, save_image=False)
+        self.__io = kTAMV_Server_io.kTAMV_io(log=log, camera_url=camera_url, save_image=False)
         
         # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
         self.__algorithm = None
 
         # TAMV has 2 detectors, one for standard and one for relaxed
         self.createDetectors()
-
+        
         # send exiting to log
-        logging.debug('*** exiting DetectionManager.__init__')
+        self.log('*** exiting DetectionManager.__init__')
 
     # timeout = 20: If no nozzle found in this time, timeout the function
     # min_matches = 3: Minimum amount of matches to confirm toolhead position after a move
     # xy_tolerance = 1: If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
     # put_frame_func: Function to put the frame into the main program
-    def recursively_find_nozzle_position(self, put_frame_func, request_id, min_matches=3, timeout=20, xy_tolerance=1):
+    def recursively_find_nozzle_position(self, put_frame_func, min_matches, timeout, xy_tolerance, log):
+        log('*** calling recursively_find_nozzle_position')
         start_time = time.time()  # Get the current time
         last_pos = (0,0)
         pos_matches = 0
@@ -46,6 +48,7 @@ class kTAMV_DetectionManager:
 
         while time.time() - start_time < timeout:
             positions = self._burstNozzleDetection(put_frame_func)
+            log('recursively_find_nozzle_position positions: %s' % str(positions))
 
             # positions = self._find_nozzle_positions()
             if positions is None or len(positions) == 0:
@@ -56,19 +59,20 @@ class kTAMV_DetectionManager:
             if abs(pos[0] - last_pos[0]) <= xy_tolerance and abs(pos[1] - last_pos[1]) <= xy_tolerance:
                 pos_matches += 1
                 if pos_matches >= min_matches:
-                    logging.debug("recursively_find_nozzle_position found %i matches and returning" % pos_matches) 
+                    self.log("recursively_find_nozzle_position found %i matches and returning" % pos_matches) 
                     return pos
             else:
-                logging.debug("Position found does not match last position. Last position: %s, current position: %s" % (str(last_pos), str(pos)))   
-                logging.debug("Difference: X%.3f Y%.3f" % (abs(pos[0] - last_pos[0]), abs(pos[1] - last_pos[1])))
+                log("Position found does not match last position. Last position: %s, current position: %s" % (str(last_pos), str(pos)))   
+                log("Difference: X%.3f Y%.3f" % (abs(pos[0] - last_pos[0]), abs(pos[1] - last_pos[1])))
                 pos_matches = 0
 
             last_pos = pos
-        logging.debug("recursively_find_nozzle_position found: %s" % str(last_pos))
+        log("recursively_find_nozzle_position found: %s" % str(last_pos))
+        log('*** exiting recursively_find_nozzle_position')
         return pos
 
     # This gets the nozzle position from the camera, taking the average position of a couple of images.
-    def _burstNozzleDetection(self, put_frame_func, min_matches=3):
+    def _burstNozzleDetection(self, put_frame_func, min_matches=2, max_retries=10):
         detectionCount = 0
         uv = [None, None]
         average_location=[0,0]
@@ -79,7 +83,7 @@ class kTAMV_DetectionManager:
         while(detectionCount < min_matches):
             frame = self.__io.get_single_frame()
             uv, processed_frame = self.nozzleDetection(frame)
-            if frame is not None:
+            if processed_frame is not None:
                 put_frame_func(processed_frame)
             if(uv is not None):
                 if(uv[0] is not None and uv[1] is not None):
@@ -90,7 +94,7 @@ class kTAMV_DetectionManager:
                     retries += 1
             else:
                 retries += 1
-            if(retries > 5):
+            if(retries > max_retries):
                 average_location[0] = None
                 average_location[1] = None
                 break
@@ -105,10 +109,10 @@ class kTAMV_DetectionManager:
             # round to 0 decimal places
             average_location = np.around(average_location,0)
             uv = average_location
-            logging.debug("_burstNozzleDetection at: %s" % str(uv))
+            self.log("_burstNozzleDetection at: %s" % str(uv))
         else:
             uv = None
-            logging.debug("Nozzle detection failed.")
+            self.log("Nozzle detection failed.")
         return(uv)
 
 # ----------------- TAMV Nozzle Detection as tested in kTAMV_cv -----------------
@@ -255,9 +259,9 @@ class kTAMV_DetectionManager:
             keypointColor = (39,127,255)
             
         if keypoints is not None:
-            logging.debug("Nozzle detected %i circles with algorithm: %s" % (len(keypoints), str(self.__algorithm)))
+            self.log("Nozzle detected %i circles with algorithm: %s" % (len(keypoints), str(self.__algorithm)))
         else:
-            logging.debug("Nozzle detection failed.")
+            self.log("Nozzle detection failed.")
             
             
         # process keypoint
@@ -340,7 +344,7 @@ class kTAMV_DetectionManager:
 # -----------------------------------------------------------
 
     def getDistance(self, x1, y1, x0, y0):
-        logging.debug('*** calling CalibrateNozzles.getDistance')
+        self.log('*** calling CalibrateNozzles.getDistance')
         x1_float = float(x1)
         x0_float = float(x0)
         y1_float = float(y1)
@@ -349,14 +353,16 @@ class kTAMV_DetectionManager:
         y_dist = (y1_float - y0_float) ** 2
         retVal = np.sqrt((x_dist + y_dist))
         returnVal = np.around(retVal,3)
-        logging.debug('*** exiting CalibrateNozzles.getDistance')
+        self.log('*** exiting CalibrateNozzles.getDistance')
         return(returnVal)
 
+    # To be removed
     def normalize_coords(self,coords):
         xdim, ydim = self._cameraWidth, self._cameraHeight
         returnValue = (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
         return(returnValue)
 
+    # To be removed
     def least_square_mapping(self,calibration_points):
         # Compute a 2x2 map from displacement vectors in screen space to real space.
         n = len(calibration_points)

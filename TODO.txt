@@ -1,7 +1,7 @@
 TODO:
 - Important
-    - Move logdebug to static function
-    - Add server debug to burstNozzleDetection
+    - 
+    - Add optionaly sending frame and positions to cloud for training AI.
     - Move Content of kTAMV_FrameRequestResult to kTAMV_FrameRequestData and rename to RequestResult with added ResultType
     - If it doesn't find a calibration point, skip that one and continue. Check how many where done, 75%
     - Starta inte om kalibreringen om inte hittar nozzle ( kanske redan så)
