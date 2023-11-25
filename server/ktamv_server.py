@@ -13,6 +13,8 @@ import kTAMV_Server_io as kTAMV_io
 import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 from dataclasses import dataclass, field
 
+logdebug = ""
+
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
     os.makedirs("logs")
@@ -31,7 +33,6 @@ request_results = dict()
 _frame_width = 0
 _frame_height = 0
 
-_debuginglog = ""
 
 @dataclass
 class kTAMV_FrameRequestResult:
@@ -43,23 +44,23 @@ class kTAMV_FrameRequestResult:
     frame_width: int = _frame_width
     frame_height: int = _frame_height
 
-@app.route('/transform_matrix', methods=['POST'])
-def transform_matrix():
+@app.route('/calculateCameraToSpaceMatrix', methods=['POST'])
+def calculateCameraToSpaceMatrix():
+    global logdebug
     try:
         # Get the camera path from the JSON object
         _calibration_points = None
-        global _debuginglog
-        # _debuginglog += "request.data: " + str(request.data) + "<br>"
+        # logdebug += "request.data: " + str(request.data) + "<br>"
         try:
             data = json.loads(request.data)
-            _calibration_points = data.get('camera_url')
+            _calibration_points = data.get('calibration_points')
         except json.JSONDecodeError:
             pass
 
         if _calibration_points is None:
             return "Calibration Points not found in JSON", 400
         else:
-            if data.get('calibration_points') is not None:
+            if _calibration_points is not None:
 
                 n = len(_calibration_points)
                 real_coords, pixel_coords = np.empty((n,2)),np.empty((n,2))
@@ -75,16 +76,17 @@ def transform_matrix():
 
 
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 
 @app.route('/set_camera_url', methods=['POST'])
 def set_camera_url():
+    global logdebug
     try:
+        logdebug += "*** calling set_camera_url ***<br>"
         # Get the camera path from the JSON object
         _camera_url = None
-        global _debuginglog
-        # _debuginglog += "request.data: " + str(request.data) + "<br>"
+        # logdebug += "request.data: " + str(request.data) + "<br>"
         try:
             data = json.loads(request.data)
             _camera_url = data.get('camera_url')
@@ -98,13 +100,16 @@ def set_camera_url():
                 global camera_url
                 camera_url = _camera_url
                 # Return code 200 to web browser
+                logdebug += f"*** end of set_camera_url (set to {camera_url}) ***<br>"
                 return "Camera path set to " + camera_url, 200
             else:
+                logdebug += "*** end of set_camera_url (not set) ***<br>"
                 return "Camera path must start with http:// or https://", 400
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 # Called from DetectionManager to put the frame in the global variable so it can be sent to the web browser
 def put_frame(frame):
+    global logdebug
     try:
         # Get a string with the current date and time
         current_datetime = datetime.datetime.now()
@@ -127,14 +132,15 @@ def put_frame(frame):
         # Alternative that is not used but one row for every step if not need to add text.
         # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 @app.route('/getAllReqests')
 def getAllReqests():
+    global logdebug
     try:
         return jsonify(request_results)
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 
 @app.route('/')
@@ -142,7 +148,7 @@ def index():
     file_path = 'logs/kTAMV_Server.log'
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
     content += "Frame width: " + str(_frame_width) + ", Frame height: " + str(_frame_height) + "<br>"
-    content += "Debuging log:<br>" + _debuginglog + "<br>"
+    content += "Debuging log:<br>" + logdebug + "<br>"
     try:
         with open(file_path, 'r', encoding='utf-8') as file:
             content += file.read()
@@ -160,6 +166,7 @@ def index():
 
 @app.route('/getReqest', methods=['GET', 'POST'])
 def getReqest():
+    global logdebug
     try:
         # Get the request id from the URL
         request_id = request.args.get("request_id", type=int, default=None)
@@ -170,7 +177,7 @@ def getReqest():
         except KeyError:
             return jsonify(kTAMV_FrameRequestResult(request_id, None, None, 404, "Request not found"))
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 
 @app.route('/burstNozzleDetection')
@@ -205,7 +212,8 @@ def burstNozzleDetection():
 
         return jsonify(request_results[request_id])
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        global logdebug
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 def drawOnFrame(usedFrame, text):
     try:
@@ -223,7 +231,8 @@ def drawOnFrame(usedFrame, text):
 
         return usedFrame
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        global logdebug
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 @app.route('/image')
 def image():
@@ -253,7 +262,8 @@ def image():
         # Send the image to the web browser
         return send_file(processed_frame_file, mimetype='image/jpeg')
     except Exception as e:
-        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+        global logdebug
+        logdebug += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
 
 # Run the app on the specified port
 if __name__ == "__main__":
@@ -269,6 +279,7 @@ if __name__ == "__main__":
 
     # Run the app with the specified port
     app.run(host='0.0.0.0', port=args.port, debug=True)
+    # app.run(host='0.0.0.0', port=args.port, debug=False)
     # serve(app, host='0.0.0.0', port=args.port)
 
     

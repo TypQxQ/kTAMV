@@ -18,6 +18,14 @@ def send_server_cfg(server_url, *args, **kwargs):
     rr = server_request(server_url + "/set_camera_url", data=kwargs, method="POST")
     # TODO: Check if the request was successful
     return rr.body
+
+####################################################################################################
+# Calculate the matrix for maping the camera coordinates to the space coordinates
+####################################################################################################
+def calculate_camera_to_space_matrix(server_url, calibration_points):
+    rr = server_request(server_url + "/calculateCameraToSpaceMatrix", {"calibration_points": calibration_points}, method="POST")
+    # TODO: Check if the request was successful
+    return rr.body
     
 
 def get_nozzle_position(server_url, reactor):
@@ -162,6 +170,7 @@ def normalize_coords(coords, frame_width, frame_height):
     returnValue = (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
     return(returnValue)
 
+# TODO: Remove this function
 def least_square_mapping(calibration_points):
     # Compute a 2x2 map from displacement vectors in screen space to real space.
     n = len(calibration_points)

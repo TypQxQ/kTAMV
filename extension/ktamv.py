@@ -77,8 +77,8 @@ class ktamv:
 
     cmd_SIMPLE_TEST_help = "Gets all requests from the server and prints them to the console"
     def cmd_SIMPLE_TEST(self, gcmd):
-        self._calibrate_px_mm(gcmd)
-        self._calibrate_nozzle(gcmd)
+        rr = utl.calculate_camera_to_space_matrix(self.server_url, self.transform_input)
+        gcmd.respond_info("Server response: %s" % str(rr))
 
     cmd_SIMPLE_NOZZLE_POSITION_help = "Detects if a nozzle is found in the current image"
     def cmd_SIMPLE_NOZZLE_POSITION(self, gcmd):
