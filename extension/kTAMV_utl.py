@@ -1,19 +1,23 @@
 # kTAMV Utility Functions
-import requests, json, time
+import json, time
 from statistics import mean, stdev
 import numpy as np
 import logging
 
+# For server_request
 import typing
 import urllib.error
 import urllib.parse
 import urllib.request
-from email.message import Message
+from email.message import Message   # For headers in server_request
 
+####################################################################################################
+# Set the server's camera path
+####################################################################################################
 def send_server_cfg(server_url, *args, **kwargs):
     rr = server_request(server_url + "/set_camera_url", data=kwargs, method="POST")
+    # TODO: Check if the request was successful
     return rr.body
-    return
     
 
 def get_nozzle_position(server_url, reactor):
@@ -23,7 +27,12 @@ def get_nozzle_position(server_url, reactor):
     logging.debug("*** calling kTAMV_utl.get_nozzle_position")
     _request_id = None
 
-    _response = json.loads(requests.get(server_url + "/burstNozzleDetection", timeout=2).text)
+    # First load the server response and check that it is working
+    _response = server_request(server_url + "/getNozzlePosition", timeout=2)
+    if _response.status != 200:
+        raise Exception("When getting nozzle position, server sent statuscode %s: %s" % ( str(_response.status), str(_response.body)))
+    # Then load the response content as JSON and check that the statuscode is Accepted (202) or OK (200)
+    _response = json.loads(_response.body)
     if not (_response['statuscode'] == 202 or _response['statuscode'] == 200):
         raise Exception("When starting to look for nozzle, server sent statuscode %s: %s" % ( str(_response['statuscode']), str(_response['statusmessage'])))
     
@@ -32,16 +41,24 @@ def get_nozzle_position(server_url, reactor):
     
     start_time = time.time()
     while True:
-        #  Check if the request is done
-        _response = json.loads(requests.get(f"{server_url}/getReqest?request_id={_request_id}", timeout=2).text)
+        # 
+        # Check if the request is done
+        # 
+
+        # First load the server response and check that it is working
+        _response = server_request(f"{server_url}/getReqest?request_id={_request_id}", timeout=2)
+        if _response.status != 200:
+            raise Exception("When getting nozzle position, server sent statuscode %s: %s" % ( str(_response.status), str(_response.body)))
+        # Then load the response content as JSON and check that the statuscode is Accepted (202) or OK (200)
+        _response = json.loads(_response.body)
         if _response['statuscode'] == 202:
             # Check if one minute has elapsed
             elapsed_time = time.time() - start_time
             if elapsed_time >= 60:
                 raise Exception("Nozzle detection timed out after 60 seconds, Server still looking for nozzle.")
 
-            # Pause for 100ms to avoid busy loop
-            _ = reactor.pause(reactor.monotonic() + 0.100)
+            # Pause for 200ms to avoid busy loop, this equals checking 5 times per second
+            _ = reactor.pause(reactor.monotonic() + 0.200)
             continue
         # If nozzles were found, return the position
         elif _response['statuscode'] == 200:
@@ -275,6 +292,7 @@ def server_request(
     method: str = "GET",
     data_as_json: bool = True,
     error_count: int = 0,
+    timeout: int = 2,               # 2 seconds
 ) -> Server_Response:
     if not url.casefold().startswith("http"):
         raise urllib.error.URLError("Incorrect and possibly insecure protocol in url")
@@ -304,7 +322,7 @@ def server_request(
     )
 
     try:
-        with urllib.request.urlopen(httprequest) as httpresponse:
+        with urllib.request.urlopen(httprequest, timeout=timeout) as httpresponse:
             response = Server_Response(
                 headers=httpresponse.headers,
                 status=httpresponse.status,
@@ -312,12 +330,13 @@ def server_request(
                     httpresponse.headers.get_content_charset("utf-8")
                 ),
             )
-    except urllib.error.HTTPError as e:
-        response = Server_Response(
-            body=str(e.reason),
-            headers=e.headers,
-            status=e.code,
-            error_count=error_count + 1,
-        )
-
+    # except urllib.error.HTTPError as e:
+    #     response = Server_Response(
+    #         body=str(e.reason),
+    #         headers=e.headers,
+    #         status=e.code,
+    #         error_count=error_count + 1,
+    #     )
+    except Exception as e:
+        raise e.with_traceback(e.__traceback__)
     return response

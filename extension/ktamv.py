@@ -201,14 +201,10 @@ class ktamv:
             self.transform_input = [(self.space_coordinates[i], 
                                      utl.normalize_coords(camera, _frame_width, _frame_height)
                                      ) for i, camera in enumerate(self.camera_coordinates)]
+
+            # TODO: Write a function to call the server in utl.py
             self.transformMatrix, _ = utl.least_square_mapping(self.transform_input)
             
-            # define camera center in machine coordinate space
-            self.newCenter = self.transformMatrix.T @ np.array([0, 0, 0, 0, 0, 1])
-            old_guessPosition=[1,1]
-            old_guessPosition[0]= round(self.newCenter[0],3)
-            old_guessPosition[1]= round(self.newCenter[1],3)
-
             _current_position = self.pm.get_gcode_position()
 
             _cx,_cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
@@ -217,12 +213,7 @@ class ktamv:
             guessPosition[0] = round(_offsets[0],3) + round(_current_position[0],3)
             guessPosition[1] = round(_offsets[1],3) + round(_current_position[1],3)
 
-
-            gcmd.respond_info("Center 1 X: " + str(guessPosition[0]) + " Y: " + str(guessPosition[1]))
-            gcmd.respond_info("Center 2 X: " + str(old_guessPosition[0]) + " Y: " + str(old_guessPosition[1]))
-
             # Move to the new center and get the nozzle position to update the camera
-            # self.gcode.respond_info("Calibration positional guess: " + str(guessPosition))
             self.pm.moveAbsolute(X = guessPosition[0], Y = guessPosition[1])
             _rr = utl.get_nozzle_position(self.server_url, self.reactor)
 

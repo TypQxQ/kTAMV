@@ -43,6 +43,41 @@ class kTAMV_FrameRequestResult:
     frame_width: int = _frame_width
     frame_height: int = _frame_height
 
+@app.route('/transform_matrix', methods=['POST'])
+def transform_matrix():
+    try:
+        # Get the camera path from the JSON object
+        _calibration_points = None
+        global _debuginglog
+        # _debuginglog += "request.data: " + str(request.data) + "<br>"
+        try:
+            data = json.loads(request.data)
+            _calibration_points = data.get('camera_url')
+        except json.JSONDecodeError:
+            pass
+
+        if _calibration_points is None:
+            return "Calibration Points not found in JSON", 400
+        else:
+            if data.get('calibration_points') is not None:
+
+                n = len(_calibration_points)
+                real_coords, pixel_coords = np.empty((n,2)),np.empty((n,2))
+                for i, (r,p) in enumerate(_calibration_points):
+                    real_coords[i] = r
+                    pixel_coords[i] = p
+                x,y = pixel_coords[:,0],pixel_coords[:,1]
+                A = np.vstack([x**2,y**2,x * y, x,y,np.ones(n)]).T
+                transform = np.linalg.lstsq(A, real_coords, rcond = None)
+                transformMatrix = transform[0]
+                # TODO: Unsure if this is correct
+                return jsonify(transformMatrix.tolist())
+
+
+    except Exception as e:
+        debuginglog += "Error: " + str(e) + "<br>" + str(traceback.format_exc()) + "<br>"
+
+
 @app.route('/set_camera_url', methods=['POST'])
 def set_camera_url():
     try:
