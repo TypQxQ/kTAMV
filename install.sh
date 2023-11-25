@@ -512,7 +512,7 @@ verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
 install_or_update_python_env
-install_or_update_klipper_python_env
+# install_or_update_klipper_python_env
 
 # Link the extension to Klipper
 link_extension
