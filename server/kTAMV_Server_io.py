@@ -2,9 +2,6 @@ import cv2, numpy as np
 import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 
-# from PIL import Image, ImageDraw, ImageFont, ImageFile
-# import time, os, copy, io, datetime
-
 import logging
  
 class kTAMV_io:
@@ -53,6 +50,7 @@ class kTAMV_io:
                             jpg = bytes_[a:b+2]
                             # Read the image from the byte array with OpenCV
                             image = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
+                            image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_AREA)
                             # Return the image
                             return image
             return None, None
