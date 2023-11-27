@@ -15,7 +15,7 @@ from email.message import Message   # For headers in server_request
 # Set the server's camera path
 ####################################################################################################
 def send_server_cfg(server_url, *args, **kwargs):
-    rr = server_request(server_url + "/set_camera_url", data=kwargs, method="POST")
+    rr = server_request(server_url + "/set_server_cfg", data=kwargs, method="POST")
     # TODO: Check if the request was successful
     return rr.body
 

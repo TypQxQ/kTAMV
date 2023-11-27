@@ -14,33 +14,40 @@ class kTAMV_DetectionManager:
     
     ##### Setup functions
     # init function
-    def __init__(self, camera_url, log, *args, **kwargs):
-        self.log = log
+    def __init__(self, log, camera_url, cloud_url, send_to_cloud = False, *args, **kwargs):
+        try:
+            self.log = log
 
-        # send calling to log
-        self.log('*** calling DetectionManager.__init__')
+            # send calling to log
+            self.log('*** calling DetectionManager.__init__')
+            
+            # Whether to send the images to the cloud after detection.
+            self.send_to_cloud = send_to_cloud
+            
+            # The already initialized io object.
+            self.__io = kTAMV_Server_io.kTAMV_io(log=log, camera_url=camera_url, cloud_url=cloud_url, save_image=False)
+            
+            # This are the variables that will be used to store the calibration points.
+            self.uv = [None, None]
+            
+            # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
+            self.__algorithm = None
 
-        # This are the variables that will be used to store the calibration points.
-        self.uv = [None, None]
-        
-        # The already initialized io object.
-        self.__io = kTAMV_Server_io.kTAMV_io(log=log, camera_url=camera_url, save_image=False)
-        
-        # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
-        self.__algorithm = None
-
-        # TAMV has 2 detectors, one for standard and one for relaxed
-        self.createDetectors()
-        
-        # send exiting to log
-        self.log('*** exiting DetectionManager.__init__')
+            # TAMV has 2 detectors, one for standard and one for relaxed
+            self.createDetectors()
+            
+            # send exiting to log
+            self.log('*** exiting DetectionManager.__init__')
+        except Exception as e:
+            self.log('*** exception in DetectionManager.__init__: %s' % str(e))
+            raise e
 
     # timeout = 20: If no nozzle found in this time, timeout the function
     # min_matches = 3: Minimum amount of matches to confirm toolhead position after a move
     # xy_tolerance = 1: If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
     # put_frame_func: Function to put the frame into the main program
-    def recursively_find_nozzle_position(self, put_frame_func, min_matches, timeout, xy_tolerance, log):
-        log('*** calling recursively_find_nozzle_position')
+    def recursively_find_nozzle_position(self, put_frame_func, min_matches, timeout, xy_tolerance):
+        self.log('*** calling recursively_find_nozzle_position')
         start_time = time.time()  # Get the current time
         last_pos = (0,0)
         pos_matches = 0
@@ -48,9 +55,8 @@ class kTAMV_DetectionManager:
 
         while time.time() - start_time < timeout:
             positions = self._burstNozzleDetection(put_frame_func)
-            log('recursively_find_nozzle_position positions: %s' % str(positions))
+            self.log('recursively_find_nozzle_position positions: %s' % str(positions))
 
-            # positions = self._find_nozzle_positions()
             if positions is None or len(positions) == 0:
                 continue
 
@@ -59,16 +65,16 @@ class kTAMV_DetectionManager:
             if abs(pos[0] - last_pos[0]) <= xy_tolerance and abs(pos[1] - last_pos[1]) <= xy_tolerance:
                 pos_matches += 1
                 if pos_matches >= min_matches:
-                    self.log("recursively_find_nozzle_position found %i matches and returning" % pos_matches) 
+                    self.log("recursively_find_nozzle_position found %i matches and returning" % pos_matches)
                     return pos
             else:
-                log("Position found does not match last position. Last position: %s, current position: %s" % (str(last_pos), str(pos)))   
-                log("Difference: X%.3f Y%.3f" % (abs(pos[0] - last_pos[0]), abs(pos[1] - last_pos[1])))
+                self.log("Position found does not match last position. Last position: %s, current position: %s" % (str(last_pos), str(pos)))   
+                self.log("Difference: X%.3f Y%.3f" % (abs(pos[0] - last_pos[0]), abs(pos[1] - last_pos[1])))
                 pos_matches = 0
 
             last_pos = pos
-        log("recursively_find_nozzle_position found: %s" % str(last_pos))
-        log('*** exiting recursively_find_nozzle_position')
+        self.log("recursively_find_nozzle_position found: %s" % str(last_pos))
+        self.log('*** exiting recursively_find_nozzle_position')
         return pos
 
     # This gets the nozzle position from the camera, taking the average position of a couple of images.
@@ -78,9 +84,11 @@ class kTAMV_DetectionManager:
         average_location=[0,0]
         retries = 0
 
+# New with only one frame detection instead of average of multiple frames 
+# because we will check the position after returning the function
         # Open the stream
         self.__io.open_stream()
-        while(detectionCount < min_matches):
+        while(retries < max_retries):
             frame = self.__io.get_single_frame()
             uv, processed_frame = self.nozzleDetection(frame)
             if processed_frame is not None:
@@ -90,14 +98,38 @@ class kTAMV_DetectionManager:
                     average_location[0] += uv[0]
                     average_location[1] += uv[1]
                     detectionCount += 1
-                else:
-                    retries += 1
-            else:
-                retries += 1
-            if(retries > max_retries):
-                average_location[0] = None
-                average_location[1] = None
-                break
+                    
+                    # Send the frame and detection to the cloud
+                    if self.send_to_cloud:
+                        self.__io.send_frame_to_cloud(processed_frame, uv)
+                    break
+            retries += 1
+
+
+        # # Open the stream
+        # self.__io.open_stream()
+        # while(detectionCount < min_matches):
+        #     frame = self.__io.get_single_frame()
+        #     uv, processed_frame = self.nozzleDetection(frame)
+        #     if processed_frame is not None:
+        #         put_frame_func(processed_frame)
+        #     if(uv is not None):
+        #         if(uv[0] is not None and uv[1] is not None):
+        #             average_location[0] += uv[0]
+        #             average_location[1] += uv[1]
+        #             detectionCount += 1
+                    
+        #             # Send the frame and detection to the cloud
+        #             if self.send_to_cloud:
+        #                 self.__io.send_frame_to_cloud(processed_frame, uv)
+        #         else:
+        #             retries += 1
+        #     else:
+        #         retries += 1
+        #     if(retries > max_retries):
+        #         average_location[0] = None
+        #         average_location[1] = None
+        #         break
 
         # Close the stream
         self.__io.close_stream()
@@ -109,7 +141,7 @@ class kTAMV_DetectionManager:
             # round to 0 decimal places
             average_location = np.around(average_location,0)
             uv = average_location
-            self.log("_burstNozzleDetection at: %s" % str(uv))
+            self.log("recursively_find_nozzle_position at: %s" % str(uv))
         else:
             uv = None
             self.log("Nozzle detection failed.")

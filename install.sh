@@ -59,7 +59,9 @@ MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 # The curl requirement is for some things in this bootstrap script.
 # libatlas 4 numpy
 # matplotlib 4 fonts
-PKGLIST="python3 python3-pip virtualenv python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress"
+# python3-jinja2 is for the Flask webserver
+# python3-waitress is to serve  the Flask webserver with less resources
+PKGLIST="python3 python3-pip virtualenv python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2"
 
 
 #
