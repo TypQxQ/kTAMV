@@ -65,15 +65,18 @@ class kTAMV_io:
             self.session.close()
             self.session = None
             
-    def send_frame_to_cloud(self, frame, cloud_url):
+    def send_frame_to_cloud(self, frame, points, algorithm):
         try:
             self.log(' *** calling send_frame_to_cloud **** ')
             _, img_encoded = cv2.imencode('.jpg', frame)
-            response = requests.post(cloud_url, data=img_encoded.tostring(), headers={'Content-Type': 'application/octet-stream'})
+            data = {'photo': img_encoded.tostring(), 'algorithm': algorithm, 'points': str(points)}
+            
+            response = requests.post(self.cloud_url, data=data)
             if response.status_code != 200:
                 self.log("Failed to send frame to cloud, got status code %d" % response.status_code)
                 return False
             self.log(' *** sent frame to cloud **** ')
+            self.log(' *** response = %s **** :' % response.text)
             return True
         except Exception as e:
             self.log("Failed to send frame to cloud %s" % str(e))

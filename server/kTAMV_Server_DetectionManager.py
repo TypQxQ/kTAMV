@@ -101,7 +101,7 @@ class kTAMV_DetectionManager:
                     
                     # Send the frame and detection to the cloud
                     if self.send_to_cloud:
-                        self.__io.send_frame_to_cloud(processed_frame, uv)
+                        self.__io.send_frame_to_cloud(frame, uv, self.__algorithm)
                     break
             retries += 1
 

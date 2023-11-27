@@ -14,7 +14,7 @@ import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
 from dataclasses import dataclass, field
 
 __logdebug = ""
-__CLOUD_URL = "http://localhost:8080"
+__CLOUD_URL = "http://ktamv.ignat.se/index.php"
 
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
@@ -224,6 +224,15 @@ def getNozzlePosition():
 
         # Get a random request id
         request_id = random.randint(0, 1000000)
+
+        if _camera_url is None:
+            request_results[request_id] = kTAMV_FrameRequestResult(
+                request_id, None, time.time() - start_time, 502, "Camera URL not set"
+            )
+            log("*** end of getNozzlePosition - Camera URL not set ***<br>")
+            return jsonify(request_results[request_id])
+
+
         request_results[request_id] = kTAMV_FrameRequestResult(
             request_id, None, None, 202, "Accepted"
         )
