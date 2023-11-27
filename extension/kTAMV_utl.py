@@ -191,8 +191,6 @@ class kTAMV_pm:
         # Load used objects. Mainly to log stuff.
         self.printer = config.get_printer()
         self.gcode = self.printer.lookup_object('gcode')
-        self.log = self.printer.load_object(config, 'ktcc_log')
-
         self.toolhead = self.printer.lookup_object("toolhead")
         
     # Ensure that the printer is homed before continuing
