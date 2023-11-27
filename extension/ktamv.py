@@ -410,8 +410,8 @@ class ktamv:
                 _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
                 _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
                 _offsets = -1 * (0.55 * self.transformMatrix.T @ _v)
-                _offsets[0] = round(_offsets[0], 2)
-                _offsets[1] = round(_offsets[1], 2)
+                _offsets[0] = round(_offsets[0], 3)
+                _offsets[1] = round(_offsets[1], 3)
 
                 self.gcode.respond_info(
                     "*** Nozzle calibration take: "

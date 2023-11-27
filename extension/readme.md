@@ -1,10 +1,10 @@
 # kTAMV - Klipper Tool Alignment (using) Machine Vision
 
-This is a non working development as of 14/11/2023.
+This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle.
 
-CVToolheadCalibration is an extension for IDEX printers running klipper that adds functionality to calibrate toolhead offset using a USB microscope/webcam. With this extension you can easily calibrate the toolhead offsets. 
+It has one part that runs as a part of Klipper, adding the necesary commands and integration, and one part that does all the io and cpu intensive calculations as a webserver, localy or on any computer for true multithreading. 
 
-Adds the following commands to klipper:
+It adds the following commands to klipper:
 
 - `KTAMV_CALIB_CAMERA`, moves the toolhead around the current position for camera-movement data
 - `KTAMV_FIND_NOZZLE_CENTER`, detects the nozzle in the current nozzle cam image and attempts to move it to the center of the image.
@@ -62,6 +62,15 @@ camera_position: 75,75 # X,Y mm values of the T0 toolhead visible in the center 
 3. Position the camera so that the nozzle is roughly in the center of the image
 4. Run the `CV_SIMPLE_NOZZLE_POSITION` command, this should return your nozzle position in the image
 5. If everything works, you can run `CV_CALIB_OFFSET` 
+
+## How it works
+One part runs as a Klipper plugin and the second part as a Web Server using Flask and 
+It is trully multithreaded because the Webserver runs in it's own Python instance.
+Being two diffrent programs that work together is especially usefull because Klipper needs realtime interaction with the printer mainboards and running as a Python application it cannot be trully multithreaded by itself.
+
+
+
+
 
 ## Special thanks
  - This extension is heavily inspired by TAMV. TAMV is an extension for Duet based printers which also uses computer vision to align toolheads. For more information see: https://github.com/HaythamB/TAMV

@@ -366,5 +366,5 @@ if __name__ == "__main__":
 
     # Run the app with the specified port
     # app.run(host="0.0.0.0", port=args.port, debug=True)
-    app.run(host='0.0.0.0', port=args.port, debug=False)
-    # serve(app, host='0.0.0.0', port=args.port)
+    # app.run(host='0.0.0.0', port=args.port, debug=False)
+    serve(app, host='0.0.0.0', port=args.port)
