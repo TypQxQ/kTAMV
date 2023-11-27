@@ -1,6 +1,6 @@
 # kTAMV - Klipper Tool Alignment (using) Machine Vision
 
-This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle.
+This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle from inside Klipper.
 
 It has one part that runs as a part of Klipper, adding the necesary commands and integration, and one part that does all the io and cpu intensive calculations as a webserver, localy or on any computer for true multithreading. 
 
@@ -64,9 +64,9 @@ camera_position: 75,75 # X,Y mm values of the T0 toolhead visible in the center 
 5. If everything works, you can run `CV_CALIB_OFFSET` 
 
 ## How it works
-One part runs as a Klipper plugin and the second part as a Web Server using Flask and 
-It is trully multithreaded because the Webserver runs in it's own Python instance.
-Being two diffrent programs that work together is especially usefull because Klipper needs realtime interaction with the printer mainboards and running as a Python application it cannot be trully multithreaded by itself.
+One part runs as a Klipper plugin and the second part as a Web Server using Flask and Waitress.
+The part running inside Klipper must run inside the enviroment  managed by Klipper and does not need any extra componnts. The Server part meanwhile needs many specific components for image recognition, mathematics, statistics and web server.
+It is trully multithreaded because the Webserver runs in it's own Python instance and can ever run on a diffrent machine. Because Klipper needs realtime interaction with the printer mainboards and running as a Python application it cannot be trully multithreaded by itself.
 
 
 
