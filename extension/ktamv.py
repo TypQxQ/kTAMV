@@ -129,6 +129,9 @@ class ktamv:
     cmd_FIND_NOZZLE_CENTER_help = "Finds the center of the nozzle and moves it to the center of the camera, offset can be set from here"
 
     def cmd_FIND_NOZZLE_CENTER(self, gcmd):
+        ##############################
+        # Calibration of the tool
+        ##############################
         self._calibrate_nozzle(gcmd)
 
     cmd_SIMPLE_TEST_help = (
@@ -180,7 +183,7 @@ class ktamv:
         self.mm_per_pixels = []
 
         # Setup camera calibration move coordinates
-        self.calibrationCoordinates = [
+        calibration_coordinates = [
             [0, -0.5],
             [0.294, -0.405],
             [0.476, -0.155],
@@ -192,6 +195,7 @@ class ktamv:
             [-0.476, -0.155],
             [-0.294, -0.405],
         ]
+        
         guessPosition = [1, 1]
 
         try:
@@ -217,13 +221,13 @@ class ktamv:
             # Save the 3D coordinates of where the nozzle is on the printer in relation to the endstop
             _xy = self.pm.get_gcode_position()
 
-            for i in range(len(self.calibrationCoordinates)):
-                # self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(self.calibrationCoordinates))))
+            for i in range(len(calibration_coordinates)):
+                # self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(calibration_coordinates))))
 
                 # # Move to calibration location and get the nozzle position
                 _rr, _xy = self.moveRelative_and_getNozzlePosition(
-                    self.calibrationCoordinates[i][0],
-                    self.calibrationCoordinates[i][1],
+                    calibration_coordinates[i][0],
+                    calibration_coordinates[i][1],
                     gcmd,
                 )
 
@@ -231,8 +235,8 @@ class ktamv:
                 if _rr is None:
                     # Move back to center but do not save the calibration point because it would be the same as the first and double the errors if it is wrong
                     self.pm.moveRelative(
-                        X=-self.calibrationCoordinates[i][0],
-                        Y=-self.calibrationCoordinates[i][1],
+                        X=-calibration_coordinates[i][0],
+                        Y=-calibration_coordinates[i][1],
                     )
                     continue
 
@@ -242,7 +246,7 @@ class ktamv:
                 ]  # Save the new nozzle position as UV 2D coordinates
 
                 # Calculate mm per pixel and save it to a list
-                mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
+                mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
                 # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                 self._save_coordinates_for_matrix(_xy, _uv, mpp)
                 self.gcode.respond_info(
@@ -250,12 +254,12 @@ class ktamv:
                 )
 
                 # If this is not the last item
-                if i < (len(self.calibrationCoordinates) - 1):
-                    # gcmd.respond_info("Moving back to starting position= X: %s Y: %s" % (str(-self.calibrationCoordinates[i][0]), str(-self.calibrationCoordinates[i][1])))
+                if i < (len(calibration_coordinates) - 1):
+                    # gcmd.respond_info("Moving back to starting position= X: %s Y: %s" % (str(-calibration_coordinates[i][0]), str(-calibration_coordinates[i][1])))
                     # Move back to center but do not save the calibration point because it would be the same as the first and double the errors if it is wrong
                     self.pm.moveRelative(
-                        X=-self.calibrationCoordinates[i][0],
-                        Y=-self.calibrationCoordinates[i][1],
+                        X=-calibration_coordinates[i][0],
+                        Y=-calibration_coordinates[i][1],
                     )
 
             #
@@ -266,8 +270,8 @@ class ktamv:
             gcmd.respond_info("Moving back to starting position")
             _olduv = _uv  # Last position to get center from inverted move
             _rr, _xy = self.moveRelative_and_getNozzlePosition(
-                -self.calibrationCoordinates[i][0],
-                -self.calibrationCoordinates[i][1],
+                -calibration_coordinates[i][0],
+                -calibration_coordinates[i][1],
                 gcmd,
             )
 
@@ -280,7 +284,7 @@ class ktamv:
                 ]  # Save the new nozzle position as UV 2D coordinates
 
                 # Calculate mm per pixel and save it to a list
-                mpp = self.getMMperPixel(self.calibrationCoordinates[i], _olduv, _uv)
+                mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
                 # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                 self._save_coordinates_for_matrix(_xy, _uv, mpp)
                 self.gcode.respond_info(
@@ -292,7 +296,7 @@ class ktamv:
             #
 
             # Check that we have at least 75% of the calibration points
-            if len(self.mm_per_pixels) < (len(self.calibrationCoordinates) * 0.75):
+            if len(self.mm_per_pixels) < (len(calibration_coordinates) * 0.75):
                 raise self.gcode.error(
                     "More than 25% of the calibration points failed, aborting"
                 )
@@ -406,8 +410,8 @@ class ktamv:
                 _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
                 _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
                 _offsets = -1 * (0.55 * self.transformMatrix.T @ _v)
-                _offsets[0] = round(_offsets[0], 3)
-                _offsets[1] = round(_offsets[1], 3)
+                _offsets[0] = round(_offsets[0], 2)
+                _offsets[1] = round(_offsets[1], 2)
 
                 self.gcode.respond_info(
                     "*** Nozzle calibration take: "
@@ -448,11 +452,6 @@ class ktamv:
                     # Move the toolhead to the new position
                     ##############################
                     _olduv = _uv
-                    logging.debug(
-                        "Calibration move X{0:-1.3f} Y{1:-1.3f} F1000 ".format(
-                            _offsets[0], _offsets[1]
-                        )
-                    )
                     self.pm.moveRelative(X=_offsets[0], Y=_offsets[1], moveSpeed=1000)
                     continue
                 # finally, we're aligned to the center

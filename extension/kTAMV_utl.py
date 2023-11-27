@@ -11,6 +11,8 @@ import urllib.parse
 import urllib.request
 from email.message import Message   # For headers in server_request
 
+__SERVER_REQUEST_TIMEOUT = 2
+
 ####################################################################################################
 # Set the server's camera path
 ####################################################################################################
@@ -87,7 +89,6 @@ def get_average_mpp(mpps : list, space_coordinates : list, camera_coordinates : 
     try:
         # Calculate the average mm per pixel and the standard deviation
         mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)
-        gcmd.respond_info("TST")
         __mpp_msg = ("Standard deviation of mm/pixel is %.4f for a calculated mm/pixel of %.4f. \nPossible deviation of %.4f" % (mpps_std_dev, mpp, ((mpps_std_dev / mpp)*100) )) + " %."
 
         # If standard deviation is higher than 10% of the average mm per pixel, try to exclude deviant values and recalculate to get a better average
@@ -257,7 +258,6 @@ class kTAMV_pm:
                 gcode += "Z%s " % (pos_array[i])
         gcode += "F%s " % (moveSpeed)
         
-        # self.gcode.respond_info("G1 command: %s" % gcode)
         self.gcode.run_script_from_command(gcode)
         toolhead = self.printer.lookup_object('toolhead')
         toolhead.wait_moves()
@@ -299,7 +299,7 @@ def server_request(
     method: str = "GET",
     data_as_json: bool = True,
     error_count: int = 0,
-    timeout: int = 2,               # 2 seconds
+    timeout: int = __SERVER_REQUEST_TIMEOUT,               # 2 seconds
 ) -> Server_Response:
     if not url.casefold().startswith("http"):
         raise urllib.error.URLError("Incorrect and possibly insecure protocol in url")
@@ -337,13 +337,6 @@ def server_request(
                     httpresponse.headers.get_content_charset("utf-8")
                 ),
             )
-    # except urllib.error.HTTPError as e:
-    #     response = Server_Response(
-    #         body=str(e.reason),
-    #         headers=e.headers,
-    #         status=e.code,
-    #         error_count=error_count + 1,
-    #     )
     except Exception as e:
         raise e.with_traceback(e.__traceback__)
     return response
