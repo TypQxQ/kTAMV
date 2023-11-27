@@ -2,7 +2,7 @@ import cv2, numpy as np
 import requests
 from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
 
-import logging
+import base64
  
 class kTAMV_io:
     def __init__(self, log, camera_url, cloud_url, save_image = False):
@@ -67,7 +67,7 @@ class kTAMV_io:
         try:
             self.log(' *** calling send_frame_to_cloud **** ')
             _, img_encoded = cv2.imencode('.jpg', frame)
-            data = {'photo': img_encoded.tostring(), 'algorithm': algorithm, 'points': str(points)}
+            data = {'photo': base64.b64encode(img_encoded), 'algorithm': algorithm, 'points': str(points)}
             
             response = requests.post(self.cloud_url, data=data)
             if response.status_code != 200:
