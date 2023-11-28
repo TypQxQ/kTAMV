@@ -1,5 +1,4 @@
 # import the Flask module, the MJPEGResponse class, and the os module
-from array import array
 import datetime, io, time, random, os, numpy as np, threading
 from flask import Flask, jsonify, request, send_file #, send_from_directory
 from PIL import Image, ImageDraw, ImageFont  #, ImageFile
@@ -58,20 +57,20 @@ def calculate_camera_to_space_matrix():
     try:
         log("*** calling calculate_camera_to_space_matrix ***")
         # Get the camera path from the JSON object
-        _calibration_points = None
+        calibration_points = None
         try:
             data = json.loads(request.data)
-            _calibration_points = data.get("calibration_points")
+            calibration_points = data.get("calibration_points")
         except json.JSONDecodeError:
             return "JSON Decode Error", 400
 
-        if _calibration_points is None:
+        if calibration_points is None:
             return "Calibration Points not found in JSON", 400
         else:
-            if _calibration_points is not None:
-                n = len(_calibration_points)
+            if calibration_points is not None:
+                n = len(calibration_points)
                 real_coords, pixel_coords = np.empty((n, 2)), np.empty((n, 2))
-                for i, (r, p) in enumerate(_calibration_points):
+                for i, (r, p) in enumerate(calibration_points):
                     real_coords[i] = r
                     pixel_coords[i] = p
                 x, y = pixel_coords[:, 0], pixel_coords[:, 1]
@@ -79,19 +78,6 @@ def calculate_camera_to_space_matrix():
                 transform = np.linalg.lstsq(A, real_coords, rcond=None)
                 global _transformMatrix
                 _transformMatrix = transform[0].T
-                
-                # transformMatrix = transform[0]
-                # TODO: Unsure if this is correct
-                # a = transformMatrix.T[0].tolist()
-                # b = transformMatrix.T[1].tolist()
-                # c= [a, b]
-                
-                
-                # c= array([a, b])
-                # c= array([a, b], dtype=array)
-                # c = array([a, b], dtype=float)
-                # return jsonify(a, b)
-                # return jsonify(transformMatrix.T)
                 return "OK", 200
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
@@ -396,5 +382,5 @@ if __name__ == "__main__":
 
     # Run the app with the specified port
     # app.run(host="0.0.0.0", port=args.port, debug=True)
-    app.run(host='0.0.0.0', port=args.port, debug=False)
-    # serve(app, host='0.0.0.0', port=args.port)
+    # app.run(host='0.0.0.0', port=args.port, debug=False)
+    serve(app, host='0.0.0.0', port=args.port)

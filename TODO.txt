@@ -1,13 +1,12 @@
 TODO:
 - Important
-    - Move Content of kTAMV_FrameRequestResult to kTAMV_FrameRequestData and rename to RequestResult with added ResultType
-    - Migrate from numpy in Klipper
-    - Move numpy function serverside
+    - Readme
 - Less important
     - Check server side nozle detection for optimization
     - If first calibration movement is too large then move to alternate movement list and restart.
     - Set a configurable error margin for recursive nozzle detection, pixel or mm. that gets recalculated to pixel.
     - send_server_cfg error management
+
 - Trivial
     - Add timeout inside kTAMV_utl.get_nozzle_position to config
     - Add server timeout inside server_request to config
