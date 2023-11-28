@@ -1,18 +1,18 @@
 import cv2, numpy as np
 import requests
-from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
+from requests.exceptions import InvalidURL, ConnectionError # , HTTPError, RequestException
 
 import base64
  
-class kTAMV_io:
+class Ktamv_Server_Io:
     def __init__(self, log, camera_url, cloud_url, save_image = False):
         self.log = log
-        self.log(' *** initializing kTAMV_io **** ')
+        self.log(' *** initializing Ktamv_Server_Io **** ')
         self.camera_url = camera_url
         self.save_image = save_image
         self.cloud_url = cloud_url
         self.session = requests.Session()
-        self.log(' *** initialized kTAMV_io with camera_url = %s, save_image = %s **** ' % (str(camera_url), str(save_image)))
+        self.log(' *** initialized Ktamv_Server_Io with camera_url = %s, save_image = %s **** ' % (str(camera_url), str(save_image)))
         
 
     def can_read_stream(self, printer):

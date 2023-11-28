@@ -234,7 +234,7 @@ link_extension()
     log_header "Linking extension to Klipper..."
     log_blank
     ln -sf "${EXTENSION_PATH}/ktamv.py" "${KLIPPER_HOME}/klippy/extras/ktamv.py"
-    ln -sf "${EXTENSION_PATH}/kTAMV_utl.py" "${KLIPPER_HOME}/klippy/extras/kTAMV_utl.py"
+    ln -sf "${EXTENSION_PATH}/ktamv_utl.py" "${KLIPPER_HOME}/klippy/extras/ktamv_utl.py"
 }
 
 # 

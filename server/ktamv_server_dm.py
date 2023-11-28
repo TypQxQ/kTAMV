@@ -1,14 +1,10 @@
-import logging, copy, io, datetime, time, os, requests, cv2, numpy as np
-from requests.exceptions import InvalidURL, HTTPError, RequestException, ConnectionError
-from PIL import Image, ImageDraw, ImageFont, ImageFile
-
-import kTAMV_Server_io, ktamv_server
+import copy, time, cv2, numpy as np
+from ktamv_server_io import Ktamv_Server_Io as io
 
 
-class kTAMV_DetectionManager:
+class Ktamv_Server_Detection_Manager:
     uv = [None, None]
     __nozzleAutoDetectionActive = False
-    __uv = None
     __algorithm = None
     __io = None
     
@@ -25,10 +21,7 @@ class kTAMV_DetectionManager:
             self.send_to_cloud = send_to_cloud
             
             # The already initialized io object.
-            self.__io = kTAMV_Server_io.kTAMV_io(log=log, camera_url=camera_url, cloud_url=cloud_url, save_image=False)
-            
-            # This are the variables that will be used to store the calibration points.
-            self.uv = [None, None]
+            self.__io = io(log=log, camera_url=camera_url, cloud_url=cloud_url, save_image=False)
             
             # This is the last successful algorithm used by the nozzle detection. Should be reset at tool change. Will have to change.
             self.__algorithm = None
@@ -54,7 +47,12 @@ class kTAMV_DetectionManager:
         pos = None
 
         while time.time() - start_time < timeout:
-            positions = self._burstNozzleDetection(put_frame_func)
+            frame = self.__io.get_single_frame()
+            positions, processed_frame = self.nozzleDetection(frame)
+            if processed_frame is not None:
+                put_frame_func(processed_frame)
+
+            # positions, frame = self._burstNozzleDetection(put_frame_func)
             self.log('recursively_find_nozzle_position positions: %s' % str(positions))
 
             if positions is None or len(positions) == 0:
@@ -66,7 +64,10 @@ class kTAMV_DetectionManager:
                 pos_matches += 1
                 if pos_matches >= min_matches:
                     self.log("recursively_find_nozzle_position found %i matches and returning" % pos_matches)
-                    return pos
+                    # Send the frame and detection to the cloud if enabled.
+                    if self.send_to_cloud:
+                        self.__io.send_frame_to_cloud(frame, pos, self.__algorithm)
+                    break
             else:
                 self.log("Position found does not match last position. Last position: %s, current position: %s" % (str(last_pos), str(pos)))   
                 self.log("Difference: X%.3f Y%.3f" % (abs(pos[0] - last_pos[0]), abs(pos[1] - last_pos[1])))
@@ -79,6 +80,7 @@ class kTAMV_DetectionManager:
 
     # This gets the nozzle position from the camera, taking the average position of a couple of images.
     def _burstNozzleDetection(self, put_frame_func, min_matches=2, max_retries=10):
+        
         detectionCount = 0
         uv = [None, None]
         average_location=[0,0]
@@ -98,38 +100,7 @@ class kTAMV_DetectionManager:
                     average_location[0] += uv[0]
                     average_location[1] += uv[1]
                     detectionCount += 1
-                    
-                    # Send the frame and detection to the cloud
-                    if self.send_to_cloud:
-                        self.__io.send_frame_to_cloud(frame, uv, self.__algorithm)
-                    break
             retries += 1
-
-
-        # # Open the stream
-        # self.__io.open_stream()
-        # while(detectionCount < min_matches):
-        #     frame = self.__io.get_single_frame()
-        #     uv, processed_frame = self.nozzleDetection(frame)
-        #     if processed_frame is not None:
-        #         put_frame_func(processed_frame)
-        #     if(uv is not None):
-        #         if(uv[0] is not None and uv[1] is not None):
-        #             average_location[0] += uv[0]
-        #             average_location[1] += uv[1]
-        #             detectionCount += 1
-                    
-        #             # Send the frame and detection to the cloud
-        #             if self.send_to_cloud:
-        #                 self.__io.send_frame_to_cloud(processed_frame, uv)
-        #         else:
-        #             retries += 1
-        #     else:
-        #         retries += 1
-        #     if(retries > max_retries):
-        #         average_location[0] = None
-        #         average_location[1] = None
-        #         break
 
         # Close the stream
         self.__io.close_stream()
@@ -145,9 +116,9 @@ class kTAMV_DetectionManager:
         else:
             uv = None
             self.log("Nozzle detection failed.")
-        return(uv)
+        return(uv, frame)
 
-# ----------------- TAMV Nozzle Detection as tested in kTAMV_cv -----------------
+# ----------------- TAMV Nozzle Detection as tested in ktamv_cv -----------------
 
     def createDetectors(self):
         # Standard Parameters
@@ -310,12 +281,12 @@ class kTAMV_DetectionManager:
             nozzleDetectFrame = cv2.circle(img=nozzleDetectFrame, center=center, radius=keypointRadius, color=(0,0,0), thickness=1,lineType=cv2.LINE_AA)
             nozzleDetectFrame = cv2.line(nozzleDetectFrame, (x-5,y), (x+5, y), (255,255,255), 2)
             nozzleDetectFrame = cv2.line(nozzleDetectFrame, (x,y-5), (x, y+5), (255,255,255), 2)
-        elif(self.__nozzleAutoDetectionActive is True):
+        else:
             # no keypoints, draw a 3 outline circle in the middle of the frame
             keypointRadius = 17
             nozzleDetectFrame = cv2.circle(img=nozzleDetectFrame, center=(320,240), radius=keypointRadius, color=(0,0,0), thickness=3,lineType=cv2.LINE_AA)
             nozzleDetectFrame = cv2.circle(img=nozzleDetectFrame, center=(320,240), radius=keypointRadius+1, color=(0,0,255), thickness=1,lineType=cv2.LINE_AA)
-            center = (None, None)
+            center = None
         # draw crosshair
         nozzleDetectFrame = cv2.line(nozzleDetectFrame, (320,0), (320,480), (0,0,0), 2)
         nozzleDetectFrame = cv2.line(nozzleDetectFrame, (0,240), (640,240), (0,0,0), 2)

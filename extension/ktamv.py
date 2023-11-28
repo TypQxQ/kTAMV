@@ -1,8 +1,7 @@
-import numpy as np
 from math import sqrt
-from . import kTAMV_utl as utl
+from . import ktamv_utl as utl
 import logging
-
+import json
 
 class ktamv:
     def __init__(self, config):
@@ -18,7 +17,7 @@ class ktamv:
 
         # Initialize variables
         self.mpp = None  # Average mm per pixel
-        self.transformMatrix = None  # Transformation matrix for converting from camera coordinates to space coordinates
+        self.is_calibrated = False  # Is the camera calibrated
 
         # List of space coordinates for each calibration point
         self.space_coordinates = []
@@ -37,7 +36,7 @@ class ktamv:
 
     def handle_ready(self):
         self.reactor = self.printer.get_reactor()
-        self.pm = utl.kTAMV_pm(self.config)  # Printer Manager
+        self.pm = utl.ktamv_pm(self.config)  # Printer Manager
         self.gcode.register_command(
             "KTAMV_CALIB_CAMERA",
             self.cmd_KTAMV_CALIB_CAMERA,
@@ -150,7 +149,7 @@ class ktamv:
         ##############################
         # Get nozzle position
         ##############################
-        logging.debug("*** calling kTAMV_SIMPLE_NOZZLE_POSITION")
+        logging.debug("*** calling KTAMV_SIMPLE_NOZZLE_POSITION")
         try:
             _response = utl.get_nozzle_position(self.server_url, self.reactor)
             if _response is None:
@@ -158,7 +157,7 @@ class ktamv:
             else:
                 self.gcode.respond_info(
                     "Found nozzle at position: %s after %.2f seconds"
-                    % (str(_response["position"]), float(_response["runtime"]))
+                    % (str(_response["data"]), float(_response["runtime"]))
                 )
         except Exception as e:
             raise self.gcode.error(
@@ -177,7 +176,7 @@ class ktamv:
         ##############################
         # Calibration of the camera
         ##############################
-        logging.debug("*** calling kTAMV.getDistance")
+        logging.debug("*** calling ktamv.getDistance")
         self.space_coordinates = []
         self.camera_coordinates = []
         self.mm_per_pixels = []
@@ -209,7 +208,7 @@ class ktamv:
                 return
 
             # Save the 2D coordinates of where the nozzle is on the camera
-            _uv = _rr["position"]
+            _uv = json.loads(_rr["data"])
 
             # Save size of the image for use in Matrix calculations
             _frame_width = _rr["frame_width"]
@@ -241,16 +240,15 @@ class ktamv:
                     continue
 
                 # If we did get a response, do the calibration point
-                _uv = _rr[
-                    "position"
-                ]  # Save the new nozzle position as UV 2D coordinates
+                # Save the new nozzle position as UV 2D coordinates
+                _uv = json.loads(_rr["data"])
 
                 # Calculate mm per pixel and save it to a list
                 mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
                 # Save the 3D space coordinates, 2D camera coordinates and mm per pixel to lists for later use
                 self._save_coordinates_for_matrix(_xy, _uv, mpp)
                 self.gcode.respond_info(
-                    "MM per pixel for step %s is %s" % (str(i + 1), str(mpp))
+                    "MM per pixel for step %s of %s is %s" % (str(i + 1), str(len(calibration_coordinates)), str(mpp))
                 )
 
                 # If this is not the last item
@@ -279,9 +277,8 @@ class ktamv:
             if _rr is None:
                 _uv = None
             else:
-                _uv = _rr[
-                    "position"
-                ]  # Save the new nozzle position as UV 2D coordinates
+                # Save the new nozzle position as UV 2D coordinates
+                _uv = json.loads(_rr["data"])
 
                 # Calculate mm per pixel and save it to a list
                 mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
@@ -314,14 +311,23 @@ class ktamv:
                 for i, camera in enumerate(self.camera_coordinates)
             ]
 
-            # TODO: Write a function to call the server in utl.py
-            self.transformMatrix, _ = utl.least_square_mapping(self.transform_input)
-
+            # Calculate the transformation matrix on the server where we have NumPy installed
+            if not (utl.calculate_camera_to_space_matrix(
+                self.server_url, self.transform_input
+            )):
+                raise self.gcode.error("Failed to calculate camera to space matrix")
+            
+            # Calculate the required values for calculationg pixel to mm position
             _current_position = self.pm.get_gcode_position()
-
             _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
             _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
-            _offsets = -1 * (0.55 * self.transformMatrix.T @ _v)
+            
+            # Use the server to calculate the offset from the center of the camera in mm XY
+            _offsets = json.loads(
+                utl.calculate_offset_from_matrix(self.server_url, _v)
+            )
+            
+            # Absolute position of the nozzle in mm
             guessPosition[0] = round(_offsets[0], 3) + round(_current_position[0], 3)
             guessPosition[1] = round(_offsets[1], 3) + round(_current_position[1], 3)
 
@@ -329,7 +335,10 @@ class ktamv:
             self.pm.moveAbsolute(X=guessPosition[0], Y=guessPosition[1])
             _rr = utl.get_nozzle_position(self.server_url, self.reactor)
 
-            logging.debug("*** exiting kTAMV.getDistance")
+            # Indicate that we have calibrated the camera
+            self.is_calibrated = True
+            
+            logging.debug("*** exiting ktamv.getDistance")
 
         except Exception as e:
             raise self.gcode.error(
@@ -340,7 +349,7 @@ class ktamv:
         ##############################
         # Calibration of the tool
         ##############################
-        logging.debug("*** calling kTAMV._calibrate_Tool")
+        logging.debug("*** calling ktamv._calibrate_Tool")
         _retries = 0
         _not_found_retries = 0
         _uv = [None, None]  # 2D coordinates of where the nozzle is on the camera image
@@ -363,7 +372,7 @@ class ktamv:
         try:
             self.pm.ensureHomed()
 
-            if self.transformMatrix is None:
+            if not self.is_calibrated:
                 raise self.gcode.error("Camera is not calibrated, aborting")
 
             # Loop max 30 times to get the nozzle position
@@ -393,7 +402,7 @@ class ktamv:
                     _not_found_retries = 0
 
                 # Save the 2D coordinates of where the nozzle is on the camera
-                _uv = _rr["position"]
+                _uv = json.loads(_rr["data"])
 
                 # Save size of the image for use in Matrix calculations
                 _frame_width = _rr["frame_width"]
@@ -409,7 +418,12 @@ class ktamv:
                 # Calculate the offset from the center of the camera
                 _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
                 _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
-                _offsets = -1 * (0.55 * self.transformMatrix.T @ _v)
+
+                # Use the server to calculate the offset from the center of the camera in mm XY
+                _offsets = json.loads(
+                    utl.calculate_offset_from_matrix(self.server_url, _v)
+                )
+
                 _offsets[0] = round(_offsets[0], 3)
                 _offsets[1] = round(_offsets[1], 3)
 
@@ -490,7 +504,7 @@ class ktamv:
     def getMMperPixel(
         self, distance_traveled=[], from_camera_point=[], to_camera_point=[]
     ):
-        logging.debug("*** calling kTAMV.getMMperPixel")
+        logging.debug("*** calling ktamv.getMMperPixel")
         logging.debug("distance_traveled: %s" % str(distance_traveled))
         logging.debug("from_camera_point: %s" % str(from_camera_point))
         logging.debug("to_camera_point: %s" % str(to_camera_point))
@@ -507,7 +521,7 @@ class ktamv:
             3,
         )
         logging.debug("mm per pixel: %s" % str(mpp))
-        logging.debug("*** exiting kTAMV.getMMperPixel")
+        logging.debug("*** exiting ktamv.getMMperPixel")
         return mpp
 
     def moveRelative_and_getNozzlePosition(self, X, Y, gcmd):
@@ -533,7 +547,7 @@ class ktamv:
         self.mm_per_pixels.append(mpp)
 
     def _get_average_mpp_from_lists(self, gcmd):
-        logging.debug("*** calling kTAMV._get_average_mpp_from_lists")
+        logging.debug("*** calling ktamv._get_average_mpp_from_lists")
         try:
             (
                 mpp,
@@ -559,7 +573,7 @@ class ktamv:
             self.space_coordinates = new_space_coordinates
             self.camera_coordinates = new_camera_coordinates
 
-            logging.debug("*** exiting kTAMV._get_average_mpp_from_lists")
+            logging.debug("*** exiting ktamv._get_average_mpp_from_lists")
             return mpp
         except Exception as e:
             raise self.gcode.error(
@@ -567,7 +581,7 @@ class ktamv:
             ).with_traceback(e.__traceback__)
 
     def getDistance(self, x1, y1, x0, y0):
-        logging.debug("*** calling kTAMV.getDistance")
+        logging.debug("*** calling ktamv.getDistance")
         x1_float = float(x1)
         x0_float = float(x0)
         y1_float = float(y1)
@@ -576,7 +590,7 @@ class ktamv:
         y_dist = (y1_float - y0_float) ** 2
         retVal = sqrt((x_dist + y_dist))
         returnVal = round(retVal, 3)
-        logging.debug("*** exiting kTAMV.getDistance")
+        logging.debug("*** exiting ktamv.getDistance")
         return returnVal
 
 

@@ -1,17 +1,14 @@
 # import the Flask module, the MJPEGResponse class, and the os module
+from array import array
 import datetime, io, time, random, os, numpy as np, threading
-import traceback
-from flask import jsonify
-from flask import Flask, request, send_file
-from flask import send_from_directory, send_file
-from PIL import Image, ImageDraw, ImageFont, ImageFile
-import argparse
+from flask import Flask, jsonify, request, send_file #, send_from_directory
+from PIL import Image, ImageDraw, ImageFont  #, ImageFile
+from argparse import ArgumentParser
 import matplotlib.font_manager as fm
 from waitress import serve
-import logging, json
-import kTAMV_Server_io as kTAMV_io
-import kTAMV_Server_DetectionManager as kTAMV_DetectionManager
+import logging, json, traceback
 from dataclasses import dataclass, field
+from ktamv_server_dm import Ktamv_Server_Detection_Manager as dm
 
 __logdebug = ""
 __CLOUD_URL = "http://ktamv.ignat.se/index.php"
@@ -23,7 +20,7 @@ logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s %(levelname)-8s %(message)s",
     datefmt="%a, %d %b %Y %H:%M:%S",
-    filename="logs/kTAMV_Server.log",
+    filename="logs/ktamv_server.log",
     filemode="w",
     encoding="utf-8",
 )
@@ -42,30 +39,31 @@ request_results = dict()
 # Size of last frame
 _frame_width = 0
 _frame_height = 0
-
+_transformMatrix = None
 
 @dataclass
-class kTAMV_FrameRequestResult:
+class Ktamv_Request_Result:
     request_id: int
-    position: list[int] = field(default_factory=list)
+    data: str # As JSON encoded string
     runtime: float = None
     statuscode: int = None
     statusmessage: str = None
     frame_width: int = _frame_width
     frame_height: int = _frame_height
+    
 
-
-@app.route("/calculateCameraToSpaceMatrix", methods=["POST"])
-def calculateCameraToSpaceMatrix():
+# Returns the transposed matrix calculated from the calibration points
+@app.route("/calculate_camera_to_space_matrix", methods=["POST"])
+def calculate_camera_to_space_matrix():
     try:
+        log("*** calling calculate_camera_to_space_matrix ***")
         # Get the camera path from the JSON object
         _calibration_points = None
-        # log("request.data: " + str(request.data))
         try:
             data = json.loads(request.data)
             _calibration_points = data.get("calibration_points")
         except json.JSONDecodeError:
-            pass
+            return "JSON Decode Error", 400
 
         if _calibration_points is None:
             return "Calibration Points not found in JSON", 400
@@ -79,12 +77,44 @@ def calculateCameraToSpaceMatrix():
                 x, y = pixel_coords[:, 0], pixel_coords[:, 1]
                 A = np.vstack([x**2, y**2, x * y, x, y, np.ones(n)]).T
                 transform = np.linalg.lstsq(A, real_coords, rcond=None)
-                transformMatrix = transform[0]
+                global _transformMatrix
+                _transformMatrix = transform[0].T
+                
+                # transformMatrix = transform[0]
                 # TODO: Unsure if this is correct
-                return jsonify(transformMatrix.tolist())
+                # a = transformMatrix.T[0].tolist()
+                # b = transformMatrix.T[1].tolist()
+                # c= [a, b]
+                
+                
+                # c= array([a, b])
+                # c= array([a, b], dtype=array)
+                # c = array([a, b], dtype=float)
+                # return jsonify(a, b)
+                # return jsonify(transformMatrix.T)
+                return "OK", 200
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
+        return ""
 
+@app.route("/calculate_offset_from_matrix", methods=["POST"])
+def calculate_offset_from_matrix():
+    try:
+        log("*** calling calculate_offset ***")
+        try:
+            data = json.loads(request.data)
+            _v = data.get("_v")
+            log("_v: " + str(_v))
+            log("_transformMatrix: " + str(_transformMatrix))
+            # _transformMatrix = data.get("transformMatrix")
+        except json.JSONDecodeError:
+            log("JSON Decode Error")
+            return "JSON Decode Error", 400
+        
+        offsets = -1 * (0.55 * _transformMatrix @ _v)
+        return jsonify(offsets.tolist())
+    except Exception as e:
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 @app.route("/set_server_cfg", methods=["POST"])
 def set_server_cfg():
@@ -173,7 +203,7 @@ def getAllReqests():
 
 @app.route("/")
 def index():
-    file_path = "logs/kTAMV_Server.log"
+    file_path = "logs/ktamv_server.log"
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
     content += (
         "Frame width: "
@@ -208,7 +238,7 @@ def getReqest():
             return jsonify(request_results[request_id])
         except KeyError:
             return jsonify(
-                kTAMV_FrameRequestResult(
+                Ktamv_Request_Result(
                     request_id, None, None, 404, "Request not found"
                 )
             )
@@ -226,14 +256,14 @@ def getNozzlePosition():
         request_id = random.randint(0, 1000000)
 
         if _camera_url is None:
-            request_results[request_id] = kTAMV_FrameRequestResult(
+            request_results[request_id] = Ktamv_Request_Result(
                 request_id, None, time.time() - start_time, 502, "Camera URL not set"
             )
             log("*** end of getNozzlePosition - Camera URL not set ***<br>")
             return jsonify(request_results[request_id])
 
 
-        request_results[request_id] = kTAMV_FrameRequestResult(
+        request_results[request_id] = Ktamv_Request_Result(
             request_id, None, None, 202, "Accepted"
         )
         log("request_results: " + str(request_results))
@@ -246,7 +276,7 @@ def getNozzlePosition():
             CV_XY_TOLERANCE = 1  # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
 
             log("*** calling do_work ***")
-            detection_manager = kTAMV_DetectionManager.kTAMV_DetectionManager(
+            detection_manager = dm(
                 log, _camera_url, __CLOUD_URL, _send_frame_to_cloud
             )
 
@@ -259,13 +289,13 @@ def getNozzlePosition():
             log("position: " + str(position))
 
             if position is None:
-                request_result_object = kTAMV_FrameRequestResult(
+                request_result_object = Ktamv_Request_Result(
                     request_id, None, time.time() - start_time, 404, "No nozzle found"
                 )
             else:
-                request_result_object = kTAMV_FrameRequestResult(
+                request_result_object = Ktamv_Request_Result(
                     request_id,
-                    position.tolist(),
+                    json.dumps(position),
                     time.time() - start_time,
                     200,
                     "OK",
@@ -358,7 +388,7 @@ if __name__ == "__main__":
     logger = logging.getLogger(__name__)
 
     # Create an argument parser
-    parser = argparse.ArgumentParser()
+    parser = ArgumentParser()
     parser.add_argument("--port", type=int, default=8085, help="Port number")
 
     # Parse the command-line arguments
@@ -366,5 +396,5 @@ if __name__ == "__main__":
 
     # Run the app with the specified port
     # app.run(host="0.0.0.0", port=args.port, debug=True)
-    # app.run(host='0.0.0.0', port=args.port, debug=False)
-    serve(app, host='0.0.0.0', port=args.port)
+    app.run(host='0.0.0.0', port=args.port, debug=False)
+    # serve(app, host='0.0.0.0', port=args.port)
