@@ -41,21 +41,27 @@ server_url: http://localhost:8085
 move_speed: 3000
 send_frame_to_cloud: true
 ```
-If your nozzle webcamera is on another stream, change that. You can find out what the stream is called in the Mainsail camera configuration. For example, here this is webcam2, so my configuration would be `nozzle_cam_url: http://localhost/webcam2/stream`.
+If your nozzle webcamera is on another stream, change that. You can find out what the stream is called in the Mainsail camera configuration. For example, here this is webcam2, so my configuration would be:
+
+`nozzle_cam_url: http://localhost/webcam2/stream`
 
 <img src="doc/mainsail-nozzlecam-settings-example.jpg" width="507">
 
+Change the `server_url` if you run on another machine or port.
 
+`move_speed` is the toolhead spped while calibrating.
 
+`send_frame_to_cloud` indicates if you want to contribute to possible future development of AI based detection.
 
+## Setting up the server image in Mainsail
+To view what the server is doing you need to add the camera in Mainsail as a Adaptive MJPEG-Streamer with the URL pointing to your printers ip and the port you have the kTAMV server running on. 
+This is because if you enter localhost here, it will try to connect to the computer you run the webbrowser in.
+For example in this image, my printer has the ip 192.168.1.204 and the kTAMV server runs on default port 8085.
+Do not enter anything in URL Stream and chose a low target FPS. This because the server will only update the image when looking for a nozzle and 4 times a second as in the example is enough.
 
--------
-```
-[cv_toolhead_calibration]
-nozzle_cam_url: http://localhost:8081?action=stream
-camera_position: 75,75 # X,Y mm values of the T0 toolhead visible in the center of the nozzle camera
-```
+<img src="doc/mainsail-ktamv-cam-settings-example.jpg" width="689">
 
+----
 ## First time running after install
 
 1. Run the `CV_CENTER_TOOLHEAD` command to center the toolhead
