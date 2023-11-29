@@ -330,7 +330,6 @@ install_klipper_config() {
     already_included=$(grep -c '\[include ktamv_macros.cfg\]' ${dest} || true)
     if [ "${already_included}" -eq 0 ]; then
         echo "" >> "${dest}"    # Add a blank line
-        echo "" >> "${dest}"    # Add a blank line
         echo -e "[include ktamv-macros.cfg]" >> "${dest}"    # Add the section header
     else
         log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
