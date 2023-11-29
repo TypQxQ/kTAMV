@@ -3,6 +3,10 @@ import requests
 from requests.exceptions import InvalidURL, ConnectionError # , HTTPError, RequestException
 
 import base64
+
+# Size of frame to use
+_FRAME_WIDTH = 640
+_FRAME_HEIGHT = 480
  
 class Ktamv_Server_Io:
     def __init__(self, log, camera_url, cloud_url, save_image = False):
@@ -50,7 +54,7 @@ class Ktamv_Server_Io:
                             jpg = bytes_[a:b+2]
                             # Read the image from the byte array with OpenCV
                             image = cv2.imdecode(np.frombuffer(jpg, dtype=np.uint8), cv2.IMREAD_COLOR)
-                            image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_AREA)
+                            image = cv2.resize(image, (_FRAME_WIDTH, _FRAME_HEIGHT), interpolation=cv2.INTER_AREA)
                             # Return the image
                             return image
             return None

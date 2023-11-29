@@ -12,6 +12,8 @@ import urllib.request
 from email.message import Message  # For headers in server_request
 
 __SERVER_REQUEST_TIMEOUT = 2
+__FRAME_WIDTH = 640
+__FRAME_HEIGHT = 480
 
 class NozzleNotFoundException(Exception):
     pass
@@ -215,7 +217,7 @@ def _get_std_dev_and_mean(mpps: list):
     return mpps_std_dev, mpp
 
 
-def normalize_coords(coords, frame_width, frame_height):
+def normalize_coords(coords, frame_width=__FRAME_WIDTH, frame_height=__FRAME_HEIGHT):
     xdim, ydim = frame_width, frame_height
     returnValue = (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
     return returnValue

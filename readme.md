@@ -35,7 +35,7 @@ This will install and configure everything.
 The installation script will add a section to printer.cfg that looks like the following:
 ```yml
 [ktamv]
-nozzle_cam_url: http://localhost/webcam/stream
+nozzle_cam_url: http://localhost/webcam2/snapshot?max_delay=0
 server_url: http://localhost:8085
 move_speed: 1800
 send_frame_to_cloud: false

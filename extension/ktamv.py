@@ -4,6 +4,9 @@ from .ktamv_utl import NozzleNotFoundException
 import logging
 import json
 
+__FRAME_WIDTH = 640
+__FRAME_HEIGHT = 480
+
 class ktamv:
     def __init__(self, config):
         # Load config values
@@ -213,10 +216,6 @@ class ktamv:
             # Save the 2D coordinates of where the nozzle is on the camera
             _uv = json.loads(_rr["data"])
 
-            # Save size of the image for use in Matrix calculations
-            _frame_width = _rr["frame_width"]
-            _frame_height = _rr["frame_height"]
-
             # Save the position of the nozzle in the as old (move from) value
             _olduv = _uv
 
@@ -319,7 +318,7 @@ class ktamv:
             self.transform_input = [
                 (
                     self.space_coordinates[i],
-                    utl.normalize_coords(camera, _frame_width, _frame_height),
+                    utl.normalize_coords(camera),
                 )
                 for i, camera in enumerate(self.camera_coordinates)
             ]
@@ -332,7 +331,7 @@ class ktamv:
             
             # Calculate the required values for calculationg pixel to mm position
             _current_position = self.pm.get_gcode_position()
-            _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
+            _cx, _cy = utl.normalize_coords(_uv)
             _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
             
             # Use the server to calculate the offset from the center of the camera in mm XY
@@ -380,8 +379,6 @@ class ktamv:
             None,
             None,
         ]  # Offsets from the center of the camera image to where the nozzle is in pixels
-        _frame_width = 0  # Width of the camera image
-        _frame_height = 0  # Height of the camera image
         _offsets = [None, None]  # Offsets from the center of the camera image
         _rr = None  # _Request_Result
 
@@ -420,10 +417,6 @@ class ktamv:
                 # Save the 2D coordinates of where the nozzle is on the camera
                 _uv = json.loads(_rr["data"])
 
-                # Save size of the image for use in Matrix calculations
-                _frame_width = _rr["frame_width"]
-                _frame_height = _rr["frame_height"]
-
                 # Save the position of the nozzle in the center
                 if _olduv is None:
                     _olduv = _uv
@@ -432,7 +425,7 @@ class ktamv:
                 _xy = self.pm.get_gcode_position()
 
                 # Calculate the offset from the center of the camera
-                _cx, _cy = utl.normalize_coords(_uv, _frame_width, _frame_height)
+                _cx, _cy = utl.normalize_coords(_uv)
                 _v = [_cx**2, _cy**2, _cx * _cy, _cx, _cy, 0]
 
                 # Use the server to calculate the offset from the center of the camera in mm XY
@@ -471,8 +464,8 @@ class ktamv:
 
                     # If the offset added to the current position is outside the frame size, abort
                     if (
-                        _pixel_offsets[0] + _uv[0] > _frame_width
-                        or _pixel_offsets[1] + _uv[1] > _frame_height
+                        _pixel_offsets[0] + _uv[0] > __FRAME_WIDTH
+                        or _pixel_offsets[1] + _uv[1] > __FRAME_HEIGHT
                         or _pixel_offsets[0] + _uv[0] < 0
                         or _pixel_offsets[1] + _uv[1] < 0
                     ):
@@ -499,10 +492,6 @@ class ktamv:
                 + str(_pixel_offsets)
                 + " _uv: "
                 + str(_uv)
-                + " _frame_width: "
-                + str(_frame_width)
-                + " _frame_height: "
-                + str(_frame_height)
                 + " _offsets: "
                 + str(_offsets)
                 + " _olduv: "

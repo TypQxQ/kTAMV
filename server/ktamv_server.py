@@ -18,6 +18,9 @@ __CV_TIMEOUT = 20
 __CV_MIN_MATCHES = 3 
 # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
 __CV_UV_TOLERANCE = 1
+# Size of frame to use
+_FRAME_WIDTH = 640
+_FRAME_HEIGHT = 480
 
 __update_static_image = True
 __error_message_to_image = ""
@@ -50,9 +53,6 @@ _camera_url = None
 _send_frame_to_cloud = False
 # Define a global variable to store a key-value pair of the request id and the result
 request_results = dict()
-# Size of last frame
-_FRAME_WIDTH = 640
-_FRAME_HEIGHT = 480
 _transformMatrix = None
 
 
@@ -63,8 +63,6 @@ class Ktamv_Request_Result:
     runtime: float = None
     statuscode: int = None
     statusmessage: str = None
-    frame_width: int = _FRAME_WIDTH
-    frame_height: int = _FRAME_HEIGHT
     
 
 # Returns the transposed matrix calculated from the calibration points
@@ -184,22 +182,6 @@ def put_frame(frame):
         __processed_frame_as_image = Image.fromarray(frame)
         __update_static_image = True
         
-        return
-        # Draw the date on the image
-        temp_frame: Image.Image = drawOnFrame(temp_frame)
-        # Convert the image to a byteio object (file-like object) encoded as JPEG
-        byteio = io.BytesIO()
-        temp_frame.save(byteio, format="JPEG")
-        byteio.seek(0)
-        # Write the frame to the global variable, so init it as global and then write to it
-        # global __processed_frame_as_bytes, _FRAME_WIDTH, _FRAME_HEIGHT, __processed_frame_as_image
-        __processed_frame_as_image = temp_frame
-        __processed_frame_as_bytes = byteio.read()
-        _FRAME_WIDTH, _FRAME_HEIGHT = temp_frame.size
-        # temp_frame.close()
-
-        # Alternative that is not used but one row for every step if not need to add text.
-        # __processed_frame_as_bytes = cv2.imencode('.jpg', __processed_frame_as_bytes)[1].tobytes()
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
@@ -305,9 +287,7 @@ def getNozzlePosition():
                     json.dumps(position),
                     time.time() - start_time,
                     200,
-                    "OK",
-                    _FRAME_WIDTH,
-                    _FRAME_HEIGHT,
+                    "OK"
                 )
 
             global request_results

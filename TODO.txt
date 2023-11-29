@@ -1,13 +1,10 @@
 TODO:
 - Important
-    - Check error messages in image from server.
-    - Show text on image that the camera url is not working.
     - Test the installation.
     - Change installation directory in Readme
-    - Rewrite Readme wit Copilot and spellcheck.
     - Move to main.
+    - Rewrite Readme wit Copilot and spellcheck.
     - Logo
 - Less important
 
 - Trivial
-    - Make frame_height and frame_width static constants.
