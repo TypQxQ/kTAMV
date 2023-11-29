@@ -10,7 +10,17 @@ from dataclasses import dataclass, field
 from ktamv_server_dm import Ktamv_Server_Detection_Manager as dm
 
 __logdebug = ""
+# URL to the cloud server
 __CLOUD_URL = "http://ktamv.ignat.se/index.php"
+# If no nozzle found in this time, timeout the function
+__CV_TIMEOUT = 20  
+# Minimum amount of matches to confirm toolhead position after a move
+__CV_MIN_MATCHES = 3 
+# If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
+__CV_UV_TOLERANCE = 1
+
+__update_static_image = True
+__error_message_to_image = ""
 
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
@@ -28,7 +38,7 @@ logging.basicConfig(
 app = Flask(__name__)
 
 # Define a global variable to store the processed frame
-processed_frame = None
+__processed_frame = None
 # Define a global variable to store the camera path (e.g. /dev/video0)
 _camera_url = None
 # Whether to send the frame to the cloud
@@ -39,6 +49,7 @@ request_results = dict()
 _frame_width = 0
 _frame_height = 0
 _transformMatrix = None
+
 
 @dataclass
 class Ktamv_Request_Result:
@@ -54,6 +65,7 @@ class Ktamv_Request_Result:
 # Returns the transposed matrix calculated from the calibration points
 @app.route("/calculate_camera_to_space_matrix", methods=["POST"])
 def calculate_camera_to_space_matrix():
+    show_error_message_to_image("")
     try:
         log("*** calling calculate_camera_to_space_matrix ***")
         # Get the camera path from the JSON object
@@ -80,11 +92,13 @@ def calculate_camera_to_space_matrix():
                 _transformMatrix = transform[0].T
                 return "OK", 200
     except Exception as e:
+        show_error_message_to_image("Error: Could not calculate image to space matrix.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
         return ""
 
 @app.route("/calculate_offset_from_matrix", methods=["POST"])
 def calculate_offset_from_matrix():
+    show_error_message_to_image("")
     try:
         log("*** calling calculate_offset ***")
         try:
@@ -100,10 +114,12 @@ def calculate_offset_from_matrix():
         offsets = -1 * (0.55 * _transformMatrix @ _v)
         return jsonify(offsets.tolist())
     except Exception as e:
+        show_error_message_to_image("Error: Could not calculate offset from matrix.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 @app.route("/set_server_cfg", methods=["POST"])
 def set_server_cfg():
+    show_error_message_to_image("")
     try:
         log("*** calling set_server_cfg ***")
         # Get the camera path from the JSON object
@@ -115,6 +131,7 @@ def set_server_cfg():
             data = json.loads(request.data)
             camera_url = data.get("camera_url")
         except json.JSONDecodeError:
+            show_error_message_to_image("Error: Could not set camera URL.")
             return "JSON Decode Error", 400
         
         try:
@@ -133,6 +150,7 @@ def set_server_cfg():
                 response += "send_frame_to_cloud set to False\n"
 
         if camera_url is None:
+            show_error_message_to_image("Error: Could not set camera URL.")
             return "Camera path not found in JSON", 400
         else:
             if camera_url.casefold().startswith(
@@ -142,39 +160,36 @@ def set_server_cfg():
                 _camera_url = camera_url
                 # Return code 200 to web browser
                 log(f"*** end of set_server_cfg (set to {_camera_url}) ***<br>")
+                show_error_message_to_image("Camera url set. Cloud upload: " + str(_send_frame_to_cloud))
                 return response + "Camera path set to " + _camera_url, 200
             else:
+                show_error_message_to_image("Error: Invalid nozzle_cam_url.")
                 log("*** end of set_server_cfg (not set) ***<br>")
                 return "Camera path must start with http:// or https://", 400
     except Exception as e:
+        show_error_message_to_image("Error: Could not set camera URL.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
 
 # Called from DetectionManager to put the frame in the global variable so it can be sent to the web browser
 def put_frame(frame):
     try:
-        # Get a string with the current date and time
-        current_datetime = datetime.datetime.now()
-        current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
-
         # Convert the frame to a PIL Image
         temp_frame = Image.fromarray(frame)
         # Draw the date on the image
-        temp_frame: Image.Image = drawOnFrame(
-            temp_frame, "Updated: " + current_datetime_str
-        )
+        temp_frame: Image.Image = drawOnFrame(temp_frame)
         # Convert the image to a byteio object (file-like object) encoded as JPEG
         byteio = io.BytesIO()
         temp_frame.save(byteio, format="JPEG")
         byteio.seek(0)
         # Write the frame to the global variable, so init it as global and then write to it
-        global processed_frame, _frame_width, _frame_height
-        processed_frame = byteio.read()
+        global __processed_frame, _frame_width, _frame_height
+        __processed_frame = byteio.read()
         _frame_width, _frame_height = temp_frame.size
         temp_frame.close()
 
         # Alternative that is not used but one row for every step if not need to add text.
-        # processed_frame = cv2.imencode('.jpg', processed_frame)[1].tobytes()
+        # __processed_frame = cv2.imencode('.jpg', __processed_frame)[1].tobytes()
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
@@ -234,6 +249,7 @@ def getReqest():
 
 @app.route("/getNozzlePosition")
 def getNozzlePosition():
+    show_error_message_to_image("")
     try:
         log("*** calling getNozzlePosition ***")
         start_time = time.time()  # Get the current time
@@ -255,12 +271,6 @@ def getNozzlePosition():
         log("request_results: " + str(request_results))
 
         def do_work():
-            CV_TIMEOUT = 20  # 5 # If no nozzle found in this time, timeout the function
-            CV_MIN_MATCHES = (
-                3  # Minimum amount of matches to confirm toolhead position after a move
-            )
-            CV_XY_TOLERANCE = 1  # If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
-
             log("*** calling do_work ***")
             detection_manager = dm(
                 log, _camera_url, __CLOUD_URL, _send_frame_to_cloud
@@ -269,7 +279,7 @@ def getNozzlePosition():
             log("detection_manager: " + str(detection_manager))
 
             position = detection_manager.recursively_find_nozzle_position(
-                put_frame, CV_MIN_MATCHES, CV_TIMEOUT, CV_XY_TOLERANCE
+                put_frame, __CV_MIN_MATCHES, __CV_TIMEOUT, __CV_UV_TOLERANCE
             )
 
             log("position: " + str(position))
@@ -278,6 +288,7 @@ def getNozzlePosition():
                 request_result_object = Ktamv_Request_Result(
                     request_id, None, time.time() - start_time, 404, "No nozzle found"
                 )
+                show_error_message_to_image("Error: No nozzle found.")
             else:
                 request_result_object = Ktamv_Request_Result(
                     request_id,
@@ -301,22 +312,52 @@ def getNozzlePosition():
         log("*** end of getNozzlePosition ***<br>")
         return jsonify(request_results[request_id])
     except Exception as e:
+        show_error_message_to_image("Error: Could not get nozzle position.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
+def drawOnFrame(usedFrame):
+    # Get a string with the current date and time
+    current_datetime = datetime.datetime.now()
+    current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
 
-def drawOnFrame(usedFrame, text):
+    # Draw the date on the image
+    usedFrame: Image.Image = drawTextOnFrame(
+        usedFrame, "Updated: " + current_datetime_str, row=1
+    )
+    
+    if _camera_url is None:
+        usedFrame = drawTextOnFrame(usedFrame, "kTAMV Server Configuration not recieved.", row=2)
+    elif __processed_frame is None:
+        usedFrame = drawTextOnFrame(usedFrame, "No image recieved since start.", row=2)
+    elif _transformMatrix is None:
+        usedFrame = drawTextOnFrame(usedFrame, "Camera not calibrated.", row=2)
+
+    if __error_message_to_image != "":
+        usedFrame = drawTextOnFrame(usedFrame, __error_message_to_image, row=3)
+                
+    return usedFrame
+
+
+
+
+def drawTextOnFrame(usedFrame, text, row=1 ):
     try:
-        # usedFrame = copy.deepcopy(image)
+        FONT_SIZE = 28
+        FONT_COLOR = (255, 255, 255)
+        FIRST_ROW_START = (10, 10)
 
         # Create a draw object
         draw = ImageDraw.Draw(usedFrame)
 
         # Choose a font
         font_path = fm.findfont(fm.FontProperties(family="arial"))
-        font = ImageFont.truetype(font_path, 32)
+        font = ImageFont.truetype(font_path, FONT_SIZE)
 
+        start_point = (FIRST_ROW_START[0], FIRST_ROW_START[1] + (row - 1) * (FONT_SIZE + 10) )
+        
         # Draw the date on the image
-        draw.text((10, 10), text, font=font, fill=(255, 255, 255))
+        draw.rectangle((start_point[0]-5, start_point[1]-5, start_point[0] + 630, start_point[1] + FONT_SIZE + 10), fill=(0,0,0))
+        draw.text(start_point, text, font=font, fill=FONT_COLOR )
 
         return usedFrame
     except Exception as e:
@@ -326,26 +367,28 @@ def drawOnFrame(usedFrame, text):
 @app.route("/image")
 def image():
     try:
-        global processed_frame
+        global __processed_frame, __update_static_image
 
         # If no image has been recieved since start, load a standby image
-        if processed_frame is None:
+        if __processed_frame is None or __update_static_image:
             standbyImage = Image.open("standby.jpg", mode="r")
 
             # read the file content as bytes
             standbyImage.load()
 
             # Draw the text on the image
-            standbyImage = drawOnFrame(standbyImage, "No image recieved since start.")
+            standbyImage = drawOnFrame(standbyImage)
 
             # Save the image to a byte array of JPEG format
             img_io = io.BytesIO()
             standbyImage.save(img_io, "JPEG")
             img_io.seek(0)
-            processed_frame = img_io.read()
+            __processed_frame = img_io.read()
+            
+            __update_static_image = False
 
         # Get a byte stream of the image
-        processed_frame_file = io.BytesIO(processed_frame)
+        processed_frame_file = io.BytesIO(__processed_frame)
         processed_frame_file.seek(0)
 
         # Send the image to the web browser
@@ -368,6 +411,10 @@ def log_get():
     global __logdebug
     return __logdebug
 
+def show_error_message_to_image(message : str):
+    global __error_message_to_image, __update_static_image
+    __error_message_to_image = message
+    __update_static_image = True
 
 # Run the app on the specified port
 if __name__ == "__main__":

@@ -1,15 +1,13 @@
 TODO:
 - Important
-    - Readme
+    - Check error messages in image from server.
+    - Show text on image that the camera url is not working.
+    - Test the installation.
+    - Change installation directory in Readme
+    - Rewrite Readme wit Copilot and spellcheck.
+    - Move to main.
+    - Logo
 - Less important
-    - Check server side nozle detection for optimization
-    - If first calibration movement is too large then move to alternate movement list and restart.
-    - Set a configurable error margin for recursive nozzle detection, pixel or mm. that gets recalculated to pixel.
-    - send_server_cfg error management
 
 - Trivial
-    - Add timeout inside kTAMV_utl.get_nozzle_position to config
-    - Add server timeout inside server_request to config
-    - Show text on image that the camera url is not working.
-    - Put a confirmation text to console when running KTAMV_FIND_NOZZLE_CENTER
-    - When camera align put txt to console reading cnter.
+    - Make frame_height and frame_width static constants.

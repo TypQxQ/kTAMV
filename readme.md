@@ -76,6 +76,12 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
 7. Run the `KTAMV_GET_OFFSET` to get the offset from when the first tool or nozzle was in the middle of the image.
 8. Run step 5 - 7 for every tool to get their offset.
 
+## Debug logs
+The kTAMV server logs in memory and everything can be displayed on it's root path.
+`http://my_printer_ip_address:8085/`
+
+The Client part logs to regular Klipper logs.
+
 ## FAQ
 - Do I need to install the server?
   - Yes.

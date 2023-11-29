@@ -60,7 +60,7 @@ def get_nozzle_position(server_url, reactor):
     _request_id = None
 
     # First load the server response and check that it is working
-    _response = server_request(server_url + "/getNozzlePosition", timeout=2)
+    _response = server_request(server_url + "/getNozzlePosition", timeout=__SERVER_REQUEST_TIMEOUT)
     if _response.status != 200:
         raise Exception(
             "When getting nozzle position, server sent statuscode %s: %s"
