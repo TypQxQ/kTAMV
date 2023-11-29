@@ -1,0 +1,12 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+logs/
+*.log
+old_code/
+server/__pycache__/
+server/.venv_c3/
+.venv_c3/

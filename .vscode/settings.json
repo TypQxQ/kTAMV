@@ -1,0 +1,13 @@
+{
+    "python.analysis.extraPaths": [
+        "../klipper/klippy/extras"
+    ],
+    "cSpell.words": [
+        "gcmd",
+        "gcode",
+        "Klipper",
+        "KTAMV",
+        "mpps",
+        "TAMV"
+    ]
+}
