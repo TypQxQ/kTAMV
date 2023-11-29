@@ -8,3 +8,5 @@ TODO:
 - Less important
 
 - Trivial
+    - Put timers on operations like calibrate camera and get possition.
+    

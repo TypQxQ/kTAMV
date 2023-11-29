@@ -4,6 +4,8 @@ This allows X and Y allignment betwween multiple tools on a 3D printer using a c
 
 It has one part that runs as a part of Klipper, adding the necesary commands and integration, and one part that does all the io and cpu intensive calculations as a webserver, localy or on any computer for true multithreading. 
 
+<img src="doc/mainsail_main.jpg" width="600">
+
 It adds the following commands to klipper:
 
 - `KTAMV_CALIB_CAMERA`, moves the toolhead around the current position for camera-movement data
