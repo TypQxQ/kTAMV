@@ -42,6 +42,7 @@ move_speed: 3000
 send_frame_to_cloud: true
 ```
 If your nozzle webcamera is on another stream, change that. You can find out what the stream is called in the Mainsail camera configuration. For example, here this is webcam2, so my configuration would be `nozzle_cam_url: http://localhost/webcam2/stream`.
+
 <img src="doc/mainsail-nozzlecam-settings-example.jpg" width="507">
 
 
