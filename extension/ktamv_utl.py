@@ -1,7 +1,6 @@
 # kTAMV Utility Functions
 import json, time
 from statistics import mean, stdev
-import numpy as np
 import logging
 
 # For server_request
