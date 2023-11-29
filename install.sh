@@ -456,20 +456,17 @@ log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_conf
 log_info "[-m <moonraker_home_dir>] [-s <system_dir>]"
 log_blank
 log_blank
-log_important "This script will install kTAMV client to Klipper and kTAMV server on port ${PORT}."
+log_important "This script will install kTAMV client to Klipper and the kTAMV server as a service on port ${PORT}."
 log_important "It will update Rasberry Pi OS and install all required packages."
-log_important "It will install configuration in printer.cfg and update manager in Moonraker."
+log_important "It will add the base configuration in printer.cfg and moonraker.conf."
 log_blank
-
-log_important "${KTAMV_REPO_DIR}/moonraker_update.txt"
-
 yn=$(prompt_yn "Do you want to continue?")
 echo
 case $yn in
     y)
         ;;
     n)
-        log_info -e "You can run this script again later to install kTAMV."
+        log_info "You can run this script again later to install kTAMV."
         log_blank
     exit 0
         ;;
@@ -502,12 +499,12 @@ yn=$(prompt_yn "Do you want to continue?")
 echo
 case $yn in
     y)
-        log_info -e "Thank you, this will help a lot!"
+        log_info "Thank you, this will help a lot!"
         log_blank
         SEND_IMAGES="true"
         ;;
     n)
-        log_info -e "Will not send any info."
+        log_info "Will not send any info."
         log_blank
         SEND_IMAGES="false"
         ;;
