@@ -16,7 +16,7 @@ It adds the following commands to klipper:
 - `KTAMV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image and reports whether it is found. The printer will not move.
 
 !!! !!! !!! !!! !!!
-This is alpha software and only meant for advanced users!
+This software is only meant for advanced users!
 Please only use while supervising your printer,
 may produce unexpected results,
 be ready to hit 'emergency stop' at any time!
