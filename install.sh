@@ -339,8 +339,8 @@ install_klipper_config() {
             echo "" >> "${dest}"    # Add a blank line
             echo "" >> "${dest}"    # Add a blank line
             echo -e "[ktamv]" >> "${dest}"    # Add the section header
-            echo -e "nozzle_cam_url: http://127.0.0.1/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
-            echo -e "server_url: http://127.0.0.1:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
+            echo -e "nozzle_cam_url: http://localhost/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
+            echo -e "server_url: http://localhost:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
             echo -e "move_speed: 1800" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
 
             log_info "Added kTAMV configuration to printer.cfg"

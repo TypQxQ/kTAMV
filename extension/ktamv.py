@@ -1,5 +1,6 @@
 from math import sqrt
 from . import ktamv_utl as utl
+from .ktamv_utl import NozzleNotFoundException
 import logging
 import json
 
@@ -26,6 +27,7 @@ class ktamv:
         self.camera_coordinates = []
         self.mm_per_pixels = []  # List of mm per pixel for each calibration point
         self.cp = None  # Center position used for offset calculations
+        self.last_calculated_offset = [0, 0] 
 
         # Load used objects.
         self.config = config
@@ -120,9 +122,10 @@ class ktamv:
             )
             return
         _pos = self.pm.get_raw_position()
-        _offset = (float(_pos[0]) - self.cp[0], float(_pos[1]) - self.cp[1])
+        self.last_calculated_offset = (float(_pos[0]) - self.cp[0], float(_pos[1]) - self.cp[1])
+        
         self.gcode.respond_info(
-            "Offset from center is X:%3f Y:%3f" % (_offset[0], _offset[1])
+            "Offset from center is X:%.3f Y:%.3f" % (self.last_calculated_offset[0], self.last_calculated_offset[1])
         )
 
     cmd_FIND_NOZZLE_CENTER_help = "Finds the center of the nozzle and moves it to the center of the camera, offset can be set from here"
@@ -223,12 +226,16 @@ class ktamv:
             for i in range(len(calibration_coordinates)):
                 # self.gcode.respond_info("Calibrating camera step %s of %s" % (str(i+1), str(len(calibration_coordinates))))
 
-                # # Move to calibration location and get the nozzle position
-                _rr, _xy = self.moveRelative_and_getNozzlePosition(
-                    calibration_coordinates[i][0],
-                    calibration_coordinates[i][1],
-                    gcmd,
-                )
+                # Move to calibration location and get the nozzle position
+                # If it is not found, skip this calibration point
+                try:
+                    _rr, _xy = self.move_relative_and_get_nozzle_position(
+                        calibration_coordinates[i][0],
+                        calibration_coordinates[i][1],
+                        gcmd,
+                    )
+                except NozzleNotFoundException as e:
+                    _rr = None    # Skip this calibration point
 
                 # If we did not get a response, skip this calibration point
                 if _rr is None:
@@ -236,6 +243,9 @@ class ktamv:
                     self.pm.moveRelative(
                         X=-calibration_coordinates[i][0],
                         Y=-calibration_coordinates[i][1],
+                    )
+                    self.gcode.respond_info(
+                        "MM per pixel for step %s of %s failed." % (str(i + 1), str(len(calibration_coordinates)))
                     )
                     continue
 
@@ -267,11 +277,14 @@ class ktamv:
             # Move back to the center and get coordinates for the center
             gcmd.respond_info("Moving back to starting position")
             _olduv = _uv  # Last position to get center from inverted move
-            _rr, _xy = self.moveRelative_and_getNozzlePosition(
-                -calibration_coordinates[i][0],
-                -calibration_coordinates[i][1],
-                gcmd,
-            )
+            try:
+                _rr, _xy = self.move_relative_and_get_nozzle_position(
+                    -calibration_coordinates[i][0],
+                    -calibration_coordinates[i][1],
+                    gcmd,
+                )
+            except NozzleNotFoundException as e:
+                _rr = None
 
             # If we did not get a response, indicate it by setting _uv to None
             if _rr is None:
@@ -333,7 +346,10 @@ class ktamv:
 
             # Move to the new center and get the nozzle position to update the camera
             self.pm.moveAbsolute(X=guessPosition[0], Y=guessPosition[1])
-            _rr = utl.get_nozzle_position(self.server_url, self.reactor)
+            try:
+                _rr = utl.get_nozzle_position(self.server_url, self.reactor)
+            except NozzleNotFoundException as e:
+                pass
 
             # Indicate that we have calibrated the camera
             self.is_calibrated = True
@@ -431,15 +447,17 @@ class ktamv:
                     "*** Nozzle calibration take: "
                     + str(_retries)
                     + ".\n X"
-                    + str(_xy[0])
+                    + str(round(_xy[0]),2)
                     + " Y"
-                    + str(_xy[1])
+                    + str(round(_xy[1],2))
                     + " \nUV: "
                     + str(_uv)
                     + " old UV: "
                     + str(_olduv)
-                    + " \nOffsets: "
-                    + str(_offsets)
+                    + " \nOffset X: "
+                    + str(round(_offsets[0],2))
+                    + " \nOffset Y: "
+                    + str(round(_offsets[1],2))
                 )
 
                 # Check if we're not aligned to the center
@@ -524,7 +542,7 @@ class ktamv:
         logging.debug("*** exiting ktamv.getMMperPixel")
         return mpp
 
-    def moveRelative_and_getNozzlePosition(self, X, Y, gcmd):
+    def move_relative_and_get_nozzle_position(self, X, Y, gcmd):
         # Move to calibration location
         self.pm.moveRelative(X=X, Y=Y)
 
@@ -593,6 +611,15 @@ class ktamv:
         logging.debug("*** exiting ktamv.getDistance")
         return returnVal
 
+    def get_status(self, eventtime= None):
+        status = {
+            "last_calculated_offset": self.last_calculated_offset,
+            "mm_per_pixels": self.mpp,
+            "is_calibrated": self.is_calibrated,
+            "send_frame_to_cloud": self.send_frame_to_cloud,
+            "camera_center_coordinates": self.cp
+        }
+        return status
 
 def load_config(config):
     return ktamv(config)

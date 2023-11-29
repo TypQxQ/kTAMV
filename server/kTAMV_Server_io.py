@@ -33,8 +33,8 @@ class Ktamv_Server_Io:
         self.log(' *** calling get_single_frame **** ')
         
         if self.session is None: 
-            self.log("Stream is not running")
-            raise Exception("Stream is not running")
+            self.log("HTTP stream for reading jpeg is not running")
+            raise Exception("HTTP stream for reading jpeg is not running")
 
         try:
             with self.session.get(self.camera_url, stream=True) as stream:
@@ -53,7 +53,7 @@ class Ktamv_Server_Io:
                             image = cv2.resize(image, (640, 480), interpolation=cv2.INTER_AREA)
                             # Return the image
                             return image
-            return None, None
+            return None
         except Exception as e:
             self.log("Failed to get single frame from stream %s" % str(e))
             # raise Exception("Failed to get single frame from stream %s" % str(e))

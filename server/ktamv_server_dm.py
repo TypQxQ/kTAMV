@@ -4,7 +4,6 @@ from ktamv_server_io import Ktamv_Server_Io as io
 
 class Ktamv_Server_Detection_Manager:
     uv = [None, None]
-    __nozzleAutoDetectionActive = False
     __algorithm = None
     __io = None
     
@@ -52,7 +51,6 @@ class Ktamv_Server_Detection_Manager:
             if processed_frame is not None:
                 put_frame_func(processed_frame)
 
-            # positions, frame = self._burstNozzleDetection(put_frame_func)
             self.log('recursively_find_nozzle_position positions: %s' % str(positions))
 
             if positions is None or len(positions) == 0:
@@ -78,45 +76,6 @@ class Ktamv_Server_Detection_Manager:
         self.log('*** exiting recursively_find_nozzle_position')
         return pos
 
-    # This gets the nozzle position from the camera, taking the average position of a couple of images.
-    def _burstNozzleDetection(self, put_frame_func, min_matches=2, max_retries=10):
-        
-        detectionCount = 0
-        uv = [None, None]
-        average_location=[0,0]
-        retries = 0
-
-# New with only one frame detection instead of average of multiple frames 
-# because we will check the position after returning the function
-        # Open the stream
-        self.__io.open_stream()
-        while(retries < max_retries):
-            frame = self.__io.get_single_frame()
-            uv, processed_frame = self.nozzleDetection(frame)
-            if processed_frame is not None:
-                put_frame_func(processed_frame)
-            if(uv is not None):
-                if(uv[0] is not None and uv[1] is not None):
-                    average_location[0] += uv[0]
-                    average_location[1] += uv[1]
-                    detectionCount += 1
-            retries += 1
-
-        # Close the stream
-        self.__io.close_stream()
-
-        if(average_location[0] is not None):
-            # calculate average X Y position from detection
-            average_location[0] = average_location[0] / detectionCount
-            average_location[1] = average_location[1] / detectionCount
-            # round to 0 decimal places
-            average_location = np.around(average_location,0)
-            uv = average_location
-            self.log("recursively_find_nozzle_position at: %s" % str(uv))
-        else:
-            uv = None
-            self.log("Nozzle detection failed.")
-        return(uv, frame)
 
 # ----------------- TAMV Nozzle Detection as tested in ktamv_cv -----------------
 
@@ -269,8 +228,16 @@ class Ktamv_Server_Detection_Manager:
             
         # process keypoint
         if(keypoints is not None and len(keypoints) >= 1):
-            # create center object
-            (x,y) = np.around(keypoints[0].pt)
+            # If multiple keypoints are found,
+            if len(keypoints) > 1:
+                # use the one closest to the center of the image.
+                closest_index = self.find_closest_keypoint(keypoints)
+                # create center object from centermost keypoint
+                (x,y) = np.around([keypoints[closest_index]].pt)
+            else:
+                # create center object from first and only keypoint
+                (x,y) = np.around(keypoints[0].pt)
+            
             x,y = int(x), int(y)
             center = (x,y)
             # create radius object
@@ -319,6 +286,21 @@ class Ktamv_Server_Detection_Manager:
 
         return(outputFrame)
 
+    def find_closest_keypoint(keypoints):
+        closest_index = None
+        closest_distance = float('inf')
+        target_point = np.array([320, 240])
+
+        for i, keypoint in enumerate(keypoints):
+            point = np.array(keypoint.pt)
+            distance = np.linalg.norm(point - target_point)
+
+            if distance < closest_distance:
+                closest_distance = distance
+                closest_index = i
+
+        return closest_index
+
     def adjust_gamma(self, image, gamma=1.2):
         # build a lookup table mapping the pixel values [0, 255] to
         # their adjusted gamma values
@@ -327,54 +309,4 @@ class Ktamv_Server_Detection_Manager:
             for i in np.arange(0, 256)]).astype( 'uint8' )
         # apply gamma correction using the lookup table
         return cv2.LUT(image, table)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-# -----------------------------------------------------------
-# From the TAMV main program
-# -----------------------------------------------------------
-
-    # def getDistance(self, x1, y1, x0, y0):
-    #     self.log('*** calling CalibrateNozzles.getDistance')
-    #     x1_float = float(x1)
-    #     x0_float = float(x0)
-    #     y1_float = float(y1)
-    #     y0_float = float(y0)
-    #     x_dist = (x1_float - x0_float) ** 2
-    #     y_dist = (y1_float - y0_float) ** 2
-    #     retVal = np.sqrt((x_dist + y_dist))
-    #     returnVal = np.around(retVal,3)
-    #     self.log('*** exiting CalibrateNozzles.getDistance')
-    #     return(returnVal)
-
-    # To be removed
-    # def normalize_coords(self,coords):
-    #     xdim, ydim = self._cameraWidth, self._cameraHeight
-    #     returnValue = (coords[0] / xdim - 0.5, coords[1] / ydim - 0.5)
-    #     return(returnValue)
-
-    # To be removed
-    # def least_square_mapping(self,calibration_points):
-    #     # Compute a 2x2 map from displacement vectors in screen space to real space.
-    #     n = len(calibration_points)
-    #     real_coords, pixel_coords = np.empty((n,2)),np.empty((n,2))
-    #     for i, (r,p) in enumerate(calibration_points):
-    #         real_coords[i] = r
-    #         pixel_coords[i] = p
-    #     x,y = pixel_coords[:,0],pixel_coords[:,1]
-    #     A = np.vstack([x**2,y**2,x * y, x,y,np.ones(n)]).T
-    #     transform = np.linalg.lstsq(A, real_coords, rcond = None)
-    #     return transform[0], transform[1].mean()
 

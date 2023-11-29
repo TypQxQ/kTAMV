@@ -13,6 +13,8 @@ from email.message import Message  # For headers in server_request
 
 __SERVER_REQUEST_TIMEOUT = 2
 
+class NozzleNotFoundException(Exception):
+    pass
 
 ####################################################################################################
 # Set the server's camera path
@@ -99,7 +101,7 @@ def get_nozzle_position(server_url, reactor):
             # Check if one minute has elapsed
             elapsed_time = time.time() - start_time
             if elapsed_time >= 60:
-                raise Exception(
+                raise NozzleNotFoundException(
                     "Nozzle detection timed out after 60 seconds, Server still looking for nozzle."
                 )
 
@@ -112,7 +114,7 @@ def get_nozzle_position(server_url, reactor):
             return _response
         # If nozzles were not found, raise exception
         elif _response["statuscode"] == 404:
-            raise Exception(
+            raise NozzleNotFoundException(
                 "Server did not find nozzle, found, got statuscode %s: %s. Try Cleaning the nozzle or adjust Z height. Verify with the KTAMV_SIMPLE_NOZZLE_POSITION command."
                 % (str(_response["statuscode"]), str(_response["statusmessage"]))
             )
