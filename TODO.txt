@@ -1,14 +1,8 @@
 TODO:
 - Important
-    - Change installation directory in Readme
-    - Move to main.
+    - Command to Start and stop updating with continuous checking the nozzle, 2 times a second or once a second is usefull for finding best light or height.
     - Rewrite Readme wit Copilot and spellcheck.
     - Logo
 - Less important
-    - Command to Start and stop updating with continuous checking the nozzle, 
-    2 times a second or once a second.
-    is usefull for finding best light or height.
-
-
 - Trivial
     - Put timers on operations like calibrate camera and get possition.
