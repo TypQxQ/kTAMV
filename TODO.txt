@@ -1,8 +1,6 @@
 TODO:
 - Important
     - Change to low priority on server.
-    - Install the macros.
-    - Test the installation.
     - Change installation directory in Readme
     - Move to main.
     - Rewrite Readme wit Copilot and spellcheck.
