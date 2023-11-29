@@ -1,6 +1,5 @@
 TODO:
 - Important
-    - Change to low priority on server.
     - Change installation directory in Readme
     - Move to main.
     - Rewrite Readme wit Copilot and spellcheck.
