@@ -83,6 +83,9 @@ The kTAMV server logs in memory and everything can be displayed on it's root pat
 The Client part logs to regular Klipper logs.
 
 ## FAQ
+- Why does it not detect my nozzle when not near the center?
+  - The further away the nozzle i from the center, the less round will the nozzle look like.
+- What can I do to improve the detection? Clean the nozzle so the opening is visible. If you can't see the nozzle cirle, the software won't either. See previous question. Change lightning. Change distance between nozzle and camera.
 - Do I need to install the server?
   - Yes.
 - Why not run everything inside Klipper?

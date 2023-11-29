@@ -37,17 +37,22 @@ logging.basicConfig(
 # create a Flask app
 app = Flask(__name__)
 
-# Define a global variable to store the processed frame
-__processed_frame = None
-# Define a global variable to store the camera path (e.g. /dev/video0)
+
+# Define a global variable to store the processed frame in form of an image
+__processed_frame_as_image = None
+# Define a global variable to store the processed frame in form of bytes
+__processed_frame_as_bytes = None
+# The loaded standby image
+__standby_image = None
+# Define a global variable to store the camera path.
 _camera_url = None
 # Whether to send the frame to the cloud
 _send_frame_to_cloud = False
 # Define a global variable to store a key-value pair of the request id and the result
 request_results = dict()
 # Size of last frame
-_frame_width = 0
-_frame_height = 0
+_FRAME_WIDTH = 640
+_FRAME_HEIGHT = 480
 _transformMatrix = None
 
 
@@ -58,8 +63,8 @@ class Ktamv_Request_Result:
     runtime: float = None
     statuscode: int = None
     statusmessage: str = None
-    frame_width: int = _frame_width
-    frame_height: int = _frame_height
+    frame_width: int = _FRAME_WIDTH
+    frame_height: int = _FRAME_HEIGHT
     
 
 # Returns the transposed matrix calculated from the calibration points
@@ -174,8 +179,12 @@ def set_server_cfg():
 # Called from DetectionManager to put the frame in the global variable so it can be sent to the web browser
 def put_frame(frame):
     try:
+        global __processed_frame_as_image, __update_static_image
         # Convert the frame to a PIL Image
-        temp_frame = Image.fromarray(frame)
+        __processed_frame_as_image = Image.fromarray(frame)
+        __update_static_image = True
+        
+        return
         # Draw the date on the image
         temp_frame: Image.Image = drawOnFrame(temp_frame)
         # Convert the image to a byteio object (file-like object) encoded as JPEG
@@ -183,13 +192,14 @@ def put_frame(frame):
         temp_frame.save(byteio, format="JPEG")
         byteio.seek(0)
         # Write the frame to the global variable, so init it as global and then write to it
-        global __processed_frame, _frame_width, _frame_height
-        __processed_frame = byteio.read()
-        _frame_width, _frame_height = temp_frame.size
-        temp_frame.close()
+        # global __processed_frame_as_bytes, _FRAME_WIDTH, _FRAME_HEIGHT, __processed_frame_as_image
+        __processed_frame_as_image = temp_frame
+        __processed_frame_as_bytes = byteio.read()
+        _FRAME_WIDTH, _FRAME_HEIGHT = temp_frame.size
+        # temp_frame.close()
 
         # Alternative that is not used but one row for every step if not need to add text.
-        # __processed_frame = cv2.imencode('.jpg', __processed_frame)[1].tobytes()
+        # __processed_frame_as_bytes = cv2.imencode('.jpg', __processed_frame_as_bytes)[1].tobytes()
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
@@ -208,9 +218,9 @@ def index():
     content = "<H1>kTAMV Server is running</H1><br><b>Log file:</b><br>"
     content += (
         "Frame width: "
-        + str(_frame_width)
+        + str(_FRAME_WIDTH)
         + ", Frame height: "
-        + str(_frame_height)
+        + str(_FRAME_HEIGHT)
         + "<br>"
     )
     content += "Debuging log:<br>" + __logdebug + "<br>"
@@ -296,8 +306,8 @@ def getNozzlePosition():
                     time.time() - start_time,
                     200,
                     "OK",
-                    _frame_width,
-                    _frame_height,
+                    _FRAME_WIDTH,
+                    _FRAME_HEIGHT,
                 )
 
             global request_results
@@ -327,7 +337,7 @@ def drawOnFrame(usedFrame):
     
     if _camera_url is None:
         usedFrame = drawTextOnFrame(usedFrame, "kTAMV Server Configuration not recieved.", row=2)
-    elif __processed_frame is None:
+    elif __processed_frame_as_image is None:
         usedFrame = drawTextOnFrame(usedFrame, "No image recieved since start.", row=2)
     elif _transformMatrix is None:
         usedFrame = drawTextOnFrame(usedFrame, "Camera not calibrated.", row=2)
@@ -367,28 +377,33 @@ def drawTextOnFrame(usedFrame, text, row=1 ):
 @app.route("/image")
 def image():
     try:
-        global __processed_frame, __update_static_image
+        global __processed_frame_as_bytes, __update_static_image, __standby_image, __processed_frame_as_image
 
         # If no image has been recieved since start, load a standby image
-        if __processed_frame is None or __update_static_image:
-            standbyImage = Image.open("standby.jpg", mode="r")
+        if __processed_frame_as_image is None:
+            __processed_frame_as_image = Image.open("standby.jpg", mode="r")
 
             # read the file content as bytes
-            standbyImage.load()
+            __processed_frame_as_image.load()
+            
+            # Update text on the image
+            __update_static_image = True
+
+        if __update_static_image:
+            __update_static_image = False
 
             # Draw the text on the image
-            standbyImage = drawOnFrame(standbyImage)
+            __processed_frame_as_image = drawOnFrame(__processed_frame_as_image)
 
             # Save the image to a byte array of JPEG format
             img_io = io.BytesIO()
-            standbyImage.save(img_io, "JPEG")
+            __processed_frame_as_image.save(img_io, "JPEG")
             img_io.seek(0)
-            __processed_frame = img_io.read()
+            __processed_frame_as_bytes = img_io.read()
             
-            __update_static_image = False
 
         # Get a byte stream of the image
-        processed_frame_file = io.BytesIO(__processed_frame)
+        processed_frame_file = io.BytesIO(__processed_frame_as_bytes)
         processed_frame_file.seek(0)
 
         # Send the image to the web browser

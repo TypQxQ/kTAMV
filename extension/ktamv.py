@@ -447,7 +447,7 @@ class ktamv:
                     "*** Nozzle calibration take: "
                     + str(_retries)
                     + ".\n X"
-                    + str(round(_xy[0]),2)
+                    + str(round(_xy[0],2))
                     + " Y"
                     + str(round(_xy[1],2))
                     + " \nUV: "
