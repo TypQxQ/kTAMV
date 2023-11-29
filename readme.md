@@ -54,10 +54,13 @@ Change the `server_url` if you run on another machine or port.
 `send_frame_to_cloud` indicates if you want to contribute to possible future development of AI based detection.
 
 ## Setting up the server image in Mainsail
-To view what the server is doing you need to add the camera in Mainsail as a Adaptive MJPEG-Streamer with the URL pointing to your printers ip and the port you have the kTAMV server running on. 
-This is because if you enter localhost here, it will try to connect to the computer you run the webbrowser in.
-For example in this image, my printer has the ip 192.168.1.204 and the kTAMV server runs on default port 8085.
-Do not enter anything in URL Stream and chose a low target FPS. This because the server will only update the image when looking for a nozzle and 4 times a second as in the example is enough.
+Add a webcam with and configure like in the image:
+- Any name you like
+- URL Stream: Leave Empty
+- URL Snapshot: pointing to your server ip.
+- Service: Adaptive MJPEG-Streamer
+- Target FPS: 4 is enough.
+Use the printer IP and not localhost or Mainsail will try to connect to the computer you run the webbrowser on.
 
 <img src="doc/mainsail-ktamv-cam-settings-example.jpg" width="689">
 
