@@ -333,7 +333,7 @@ install_klipper_config() {
     if [ "${already_included}" -eq 0 ]; then
         echo "" >> "${dest}"    # Add a blank line
         echo "" >> "${dest}"    # Add a blank line
-        echo -e '\[include ktamv-macros.cfg\]' >> "${dest}"    # Add the section header
+        echo -e "\[include ktamv-macros.cfg\]" >> "${dest}"    # Add the section header
     else
         log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
     fi
@@ -446,6 +446,28 @@ log_blank
 log_blank
 log_blank
 log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
 log_header "                     kTAMV"
 log_header "   Klipper Tool Alignment (using) Machine Vision"
 log_blank
@@ -456,7 +478,7 @@ log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_conf
 log_info "[-m <moonraker_home_dir>] [-s <system_dir>]"
 log_blank
 log_blank
-log_important "This script will install kTAMV client to Klipper and the kTAMV server as a service on port ${PORT}."
+log_important "This script will install the kTAMV client to Klipper and the kTAMV server as a service on port ${PORT}."
 log_important "It will update Rasberry Pi OS and install all required packages."
 log_important "It will add the base configuration in printer.cfg and moonraker.conf."
 log_blank
