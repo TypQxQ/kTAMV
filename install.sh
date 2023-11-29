@@ -319,8 +319,6 @@ install_klipper_config() {
 
             log_info "Added kTAMV configuration to printer.cfg"
             log_important "Please check the configuration in printer.cfg and adjust it as needed"
-            # Restart Klipper
-            restart_klipper
         else
             log_error "[ktamv] already exists in printer.cfg - skipping adding it there"
         fi
@@ -333,7 +331,7 @@ install_klipper_config() {
     if [ "${already_included}" -eq 0 ]; then
         echo "" >> "${dest}"    # Add a blank line
         echo "" >> "${dest}"    # Add a blank line
-        echo -e "\[include ktamv-macros.cfg\]" >> "${dest}"    # Add the section header
+        echo -e "[include ktamv-macros.cfg]" >> "${dest}"    # Add the section header
     else
         log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
     fi
@@ -344,6 +342,9 @@ install_klipper_config() {
     else
         log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
     fi
+    # Restart Klipper
+    restart_klipper
+
 }
 
 # 
