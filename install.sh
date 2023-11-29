@@ -299,16 +299,23 @@ verify_ready()
 # 
 install_update_manager() {
     log_header "Adding update manager to moonraker.conf"
-    file="${KLIPPER_CONFIG_HOME}/moonraker.conf"
-    if [ -f "${file}" ]; then
-        update_section=$(grep -c '\[update_manager ktamv\]' ${file} || true)
-        if [ "${update_section}" -eq 0 ]; then
-            echo "" >> "${file}"
-            while read -r line; do
-                echo -e "${line}" >> "${file}"
-            done < "${KTAMV_REPO_DIR}/moonraker_update.txt"
-            echo "" >> "${file}"
-            restart=1
+    dest=${KLIPPER_CONFIG_HOME}/moonraker.conf
+    if test -f $dest; then
+        # Backup the original printer.cfg file
+        next_dest="$(nextfilename "$dest")"
+        log_info "Copying original moonraker.conf file to ${next_dest}"
+        cp ${dest} ${next_dest}
+        already_included=$(grep -c '\[update_manager ktamv\]' ${dest} || true)
+        if [ "${already_included}" -eq 0 ]; then
+            echo "" >> "${dest}"    # Add a blank line
+            echo "" >> "${dest}"    # Add a blank line
+            echo -e "[update_manager ktamv]]" >> "${dest}"    # Add the section header
+            echo -e "type: git_repo" >> "${dest}"
+            echo -e "path: ~/kTAMV" >> "${dest}"
+            echo -e "origin: https://github.com/TypQxQ/kTAMV.git" >> "${dest}"
+            echo -e "primary_branch: main" >> "${dest}"
+            echo -e "install_script: install.sh" >> "${dest}"
+            echo -e "managed_services: klipper" >> "${dest}"
         else
             log_error "[update_manager ktamv] already exists in moonraker.conf - skipping installing it there"
         fi

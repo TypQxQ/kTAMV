@@ -29,8 +29,7 @@ Connect to your klipper machine using SSH, run these command
 cd ~/ && git clone -b dev https://github.com/TypQxQ/kTAMV.git && bash ~/kTAMV/install.sh
 ```
 
-This will clone the repository and execute the install script.
-The install script will update the system, install the requrements system wide, link the Klipper extensions, add configuration to printer.cfg, add moonraker automatic update, install the server a system.d process and add it to Moonraker to be able to start and stop it within your preffered web interface.
+This will install and configure everything.
 
 ## Configuration
 The installation script will add a section to printer.cfg that looks like the following:
@@ -65,7 +64,7 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
 <img src="doc/mainsail-ktamv-cam-settings-example.jpg" width="689">
 
 ----
-## First time running after install
+## How to run
 
 1. Run the `CV_CENTER_TOOLHEAD` command to center the toolhead
 2. Connect and open the web page to view the nozzle cam
@@ -90,7 +89,11 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
   - To try to train an AI to find the nozzle. I don't know if and when I can do it but the more data I recieve, the more precise an AI can be with diffrent types of nozzles, heights and lightning setups.
 - Why did you build this?
   - I was too lazy too install and run TAMV in a desktop enviroment so I spent weeks on this instead.
-- Why do I have to enter the ip adress of the 
+- Why do I have to enter the ip adress of the printer and not localhost in my webcam configuration?
+  - This is because Mainsail runs in your browser and the address localhost maps to the computer you run the browser on.
+- What does the installation script do?
+  - It will clone the repository and execute the install script.
+The install script will update the system, install the requrements system wide, link the Klipper extensions, add configuration to printer.cfg, add moonraker automatic update, install the server a system.d process and add it to Moonraker to be able to start and stop it within your preffered web interface.
 
 ## How it works
 This project consists of two parts: a Klipper plugin and a web server based on Flask and Waitress. The Klipper plugin runs within the environment managed by Klipper and does not require any additional components. The web server, on the other hand, depends on various specific components for image recognition, mathematics, statistics and web serving. This project is truly multithreaded because the web server operates in its own Python instance and can even run on a different machine. This is unlike only running in Klipper, which is not truly multithreaded and has to prioritize real-time interaction with the printer mainboards.
