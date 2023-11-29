@@ -108,7 +108,7 @@ log_blank()
 #
 # Logic to create / update our virtual py env
 #
-ensure_py_venv()
+install_or_update_python_env()
 {
     log_header "Checking Python Virtual Environment For kTAMV..."
     # If the service is already running, we can't recreate the virtual env
@@ -159,45 +159,6 @@ install_or_update_system_dependencies()
 #
 # Logic to install or update the virtual env and all of our required packages.
 #
-install_or_update_python_env()
-{
-    log_header "Checking Python Virtual Environment For kTAMV Server..."
-    # Now, ensure the virtual environment is created.
-    ensure_py_venv
-
-    # Update pip if needed
-    # log_info "Updating PIP if needed..."
-    # "${KTAMV_ENV}"/bin/python -m pip install --upgrade pip
-
-    # Update setuptools if needed
-    # log_info "Updating setuptools if needed..."
-    # "${KTAMV_ENV}"/bin/pip3 install -q --upgrade pip setuptools wheel
-
-    # Finally, ensure our plugin requirements are installed and updated.
-    # Installing versions that are too new can cause issues, so we pin to the versions we know work.
-    # This are the versions installed in in Raspberry Pi OS as of 2023-11-23.
-    # For example the version of numpy 1.26.2 was unable to be imported in the virtual env when already installed in OS.
-    log_important "Installing or updating required python libs to kTAMV..."
-    log_important "Especially OpenCV can take up to a couple of hours because it needs compiling."
-    log_info "Python libs installed."
-}
-
-
-#
-# Logic to install or update the virtual env where Klipper runs and all of our required packages.
-#
-install_or_update_klipper_python_env()
-{
-    log_header "Checking Python Virtual Environment For Klipper..."
-    # Update pip if needed
-    log_info "Updating PIP if needed..."
-    "${KLIPPER_ENV}"/bin/python -m pip install --upgrade pip
-
-    # Finally, ensure our plugin requirements are installed and updated.
-    log_important "Installing or updating required python libs to Klipper enviroment..."
-    "${KLIPPER_ENV}"/bin/pip3 install -q -r "${KTAMV_REPO_DIR}"/requirements.txt
-    log_info "Python libs installed to Klipper enviroment."
-}
 
 #
 # Logic to ensure the user isn't trying to use this script to setup in OctoPrint.
@@ -365,6 +326,23 @@ install_klipper_config() {
         fi
     else
         log_error "File printer.cfg file not found! Cannot add kTAMV configuration. Do it manually."
+    fi
+
+    # Add the inclusion of macros.cfg to printer.cfg if it doesn't exist
+    already_included=$(grep -c '\[include ktamv_macros.cfg\]' ${dest} || true)
+    if [ "${already_included}" -eq 0 ]; then
+        echo "" >> "${dest}"    # Add a blank line
+        echo "" >> "${dest}"    # Add a blank line
+        echo -e '\[include ktamv-macros.cfg\]' >> "${dest}"    # Add the section header
+    else
+        log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
+    fi
+    
+    if [ ! -f "${KLIPPER_CONFIG_HOME}/ktamv-macros.cfg" ]; then
+        log_info "Copying ktamv-macros.cfg to ${KLIPPER_CONFIG_HOME}"
+        cp ${KTAMV_REPO_DIR}/ktamv-macros.cfg ${KLIPPER_CONFIG_HOME}
+    else
+        log_error "[include ktamv-macros.cfg] already exists in printer.cfg - skipping adding it there"
     fi
 }
 
@@ -576,7 +554,6 @@ verify_home_dirs
 
 # Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
 install_or_update_python_env
-# install_or_update_klipper_python_env
 
 # Link the extension to Klipper
 link_extension

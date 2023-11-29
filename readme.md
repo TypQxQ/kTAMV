@@ -14,7 +14,6 @@ It adds the following commands to klipper:
 - `KTAMV_GET_OFFSET`, Get the offset from the current X,Y position to the origin X,Y position. Prints it to console.
 - `KTAMV_MOVE_TO_ORIGIN`, moves the toolhead to the configured center position origin as set with KTAMV_SET_ORIGIN
 - `KTAMV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image and reports whether it is found. The printer will not move.
-- `KTAMV_TEST`, debug command to check if the script works and OpenCV versions
 
 !!! !!! !!! !!! !!!
 This is alpha software and only meant for advanced users!
