@@ -37,8 +37,8 @@ The installation script will add a section to printer.cfg that looks like the fo
 [ktamv]
 nozzle_cam_url: http://localhost/webcam/stream
 server_url: http://localhost:8085
-move_speed: 3000
-send_frame_to_cloud: true
+move_speed: 1800
+send_frame_to_cloud: false
 ```
 If your nozzle webcamera is on another stream, change that. You can find out what the stream is called in the Mainsail camera configuration. For example, here this is webcam2, so my configuration would be:
 
@@ -66,11 +66,15 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
 ----
 ## How to run
 
-1. Run the `CV_CENTER_TOOLHEAD` command to center the toolhead
-2. Connect and open the web page to view the nozzle cam
-3. Position the camera so that the nozzle is roughly in the center of the image
-4. Run the `CV_SIMPLE_NOZZLE_POSITION` command, this should return your nozzle position in the image
-5. If everything works, you can run `CV_CALIB_OFFSET` 
+1. Run the `KTAMV_SEND_SERVER_CFG` command to configure the server.
+2. Home the printer and move the endstop or nozzle over the camera so that it is aproximatley in the middle of the image.
+2. Run the `KTAMV_CALIB_CAMERA` command to detect the nozzle or endstop. Note that it can have problems with endstops and it's easier to calibrate using a nozzle.
+3. If successfull, run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle or endstop.
+4. Run the `KTAMV_SET_ORIGIN` command to set this as the origin for all other offsets.
+5. Change to another too and move the nozzle over the camera so that it is aproximatley in the middle of the image.
+6. Run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle.
+7. Run the `KTAMV_GET_OFFSET` to get the offset from when the first tool or nozzle was in the middle of the image.
+8. Run step 5 - 7 for every tool to get their offset.
 
 ## FAQ
 - Do I need to install the server?
@@ -101,11 +105,6 @@ This project consists of two parts: a Klipper plugin and a web server based on F
 The camera calibration performs small movements around the initial position to keep the nozzle centered and prevent the nozzle opening from becoming oval-shaped. It will try to find the nozzle in each position and calculate the distance in pixels between the two, already knowing the requested physical distance on the printer. It uses ten positions and skips the ones where the nozzle is not detected. It then filters out the values that deviate more than 20% from the average, removing false readings and using only true values. It finallycalculates a matrix it can use to map the distance between a point and the center on the image and the real space coordinates.
 
 When the server needs to find the center of the nozzle it will first fetch a frame from the webcamera, it is the only time it accesses the webcam feed. Then it will resize the image to 640x480 pixels. After this it will try to find a circle that would match the nozzle opening by going trough five diffrent detector and image preprocessor combinations. If it finds multiple circles, it will then use the one closest to the center of the image. It will repeat the above until it has found the same middlepoint 3 consecutive times with a tolerance of one pixel, or it times out, default 20s.
-
-
-
-
-
 
 ## Special thanks
  - This extension uses much of the logic in TAMV. TAMV uses a GUI inside the Desktop enviroment to align toolheads using computer vision. For more information see: https://github.com/HaythamB/TAMV

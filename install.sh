@@ -47,21 +47,25 @@ SYSTEMDDIR="/etc/systemd/system"
 # Path to the moonraker asvc file where services are defined
 MOONRAKER_ASVC=~/printer_data/moonraker.asvc
 
-# MOONRAKER_RESTART=0
+# Agree to send images to the developer
+SEND_IMAGES="false"
+
 
 # Note that this is parsed by the update process to find and update required system packages on update!
-# On update THIS SCRIPT ISN'T RAN, only this line is parsed out and used to install / update system packages.
-# For python packages, the `requirements.txt` package is used on update.
 # This var name MUST BE `PKGLIST`!!
 #
 # The python requirements are for the installer and plugin
 # The virtualenv is for our virtual package env we create
-# The curl requirement is for some things in this bootstrap script.
-# libatlas 4 numpy
-# matplotlib 4 fonts
-# python3-jinja2 is for the Flask webserver
-# python3-waitress is to serve  the Flask webserver with less resources
-PKGLIST="python3 python3-pip virtualenv python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2"
+# The curl requirement is for some things in this script.
+# OpenCV is used for the image processing
+# NumpPy is used for mathemtical operations
+# PIL is used for image processing
+# Flask is used for the webserver
+# Waitress is used to serve the Flask webserver with less resources
+# Jinja2 is used by the Flask webserver
+# libatlas is used by NumPy
+# matplotlib is to find usable fonts
+PKGLIST="python3 python3-pip virtualenv curl python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2"
 
 
 #
@@ -349,6 +353,8 @@ install_klipper_config() {
             echo -e "nozzle_cam_url: http://localhost/webcam/stream" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
             echo -e "server_url: http://localhost:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
             echo -e "move_speed: 1800" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
+            echo -e "send_frame_to_cloud: ${SEND_IMAGES}" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
+            
 
             log_info "Added kTAMV configuration to printer.cfg"
             log_important "Please check the configuration in printer.cfg and adjust it as needed"
@@ -449,7 +455,15 @@ $@ (y/n)? " yn
     done
 }
 
-
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
 log_blank
 log_blank
 log_blank
@@ -464,13 +478,14 @@ log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_conf
 log_info "[-m <moonraker_home_dir>] [-s <system_dir>]"
 log_blank
 log_blank
-log_important "This script will take very long to run (up to 2 hours)."
-log_important "This is because it will install OpenCV, which needs to be compiled."
+log_important "This script will install kTAMV client to Klipper and kTAMV server on port ${PORT}."
+log_important "It will update Rasberry Pi OS and install all required packages."
+log_important "It will install configuration in printer.cfg and update manager in Moonraker."
 log_blank
 
 log_important "${KTAMV_REPO_DIR}/moonraker_update.txt"
 
-yn=$(prompt_yn "Are you sure you want to proceed with installation now?")
+yn=$(prompt_yn "Do you want to continue?")
 echo
 case $yn in
     y)
@@ -481,6 +496,46 @@ case $yn in
     exit 0
         ;;
 esac
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_blank
+log_header "                     kTAMV"
+log_header "   Klipper Tool Alignment (using) Machine Vision"
+log_blank
+log_blank
+log_important "Do you want to contribute to the development of kTAMV?"
+log_info "I would love if you would like to share the images of the nozzle and obtained results taken when finding the nozzle."
+log_info "I plan to use it to improve the algorithm and maybe train an AI as the next step."
+log_info "You can change this setting later in printer.cfg."
+log_blank
+
+yn=$(prompt_yn "Do you want to continue?")
+echo
+case $yn in
+    y)
+        log_info -e "Thank you, this will help a lot!"
+        log_blank
+        SEND_IMAGES="true"
+        ;;
+    n)
+        log_info -e "Will not send any info."
+        log_blank
+        SEND_IMAGES="false"
+        ;;
+esac
+
+
 
 while getopts "k:c:m:ids" arg; do
     case $arg in
