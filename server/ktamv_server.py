@@ -16,8 +16,6 @@ __CLOUD_URL = "http://ktamv.ignat.se/index.php"
 __CV_TIMEOUT = 20  
 # Minimum amount of matches to confirm toolhead position after a move
 __CV_MIN_MATCHES = 3 
-# If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
-__CV_UV_TOLERANCE = 1
 # Size of frame to use
 _FRAME_WIDTH = 640
 _FRAME_HEIGHT = 480
@@ -25,7 +23,11 @@ _FRAME_HEIGHT = 480
 # FPS to use when running the preview
 __PREVIEW_FPS = 2
 
+# If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
+__detection_tolerance = 0
+# Wheather to update the image at next request
 __update_static_image = True
+# Error message to show on the image
 __error_message_to_image = ""
 
 # Indicates if preview is running
@@ -56,9 +58,10 @@ __standby_image = None
 # Define a global variable to store the camera path.
 _camera_url = None
 # Whether to send the frame to the cloud
-_send_frame_to_cloud = False
+__send_frame_to_cloud = False
 # Define a global variable to store a key-value pair of the request id and the result
 request_results = dict()
+# The transform matrix calculated from the calibration points
 _transformMatrix = None
 
 
@@ -135,7 +138,7 @@ def set_server_cfg():
         response = ""
 
         # Stoping preview if running
-        global __preview_running
+        global __preview_running, __detection_tolerance, __send_frame_to_cloud
         __preview_running = False
         
         # Get the camera path from the JSON object
@@ -153,13 +156,18 @@ def set_server_cfg():
             pass
 
         if send_frame_to_cloud is not None:
-            global _send_frame_to_cloud
             if send_frame_to_cloud == True:
-                _send_frame_to_cloud = True
+                __send_frame_to_cloud = True
                 response += "send_frame_to_cloud set to True\n"
             else:
-                _send_frame_to_cloud = False
+                __send_frame_to_cloud = False
                 response += "send_frame_to_cloud set to False\n"
+
+        try:
+            data = json.loads(request.data)
+            __detection_tolerance = data.get("detection_tolerance")
+        except:
+            pass
 
         if camera_url is None:
             show_error_message_to_image("Error: Could not set camera URL.")
@@ -172,7 +180,7 @@ def set_server_cfg():
                 _camera_url = camera_url
                 # Return code 200 to web browser
                 log(f"*** end of set_server_cfg (set to {_camera_url}) ***<br>")
-                show_error_message_to_image("Camera url set. Cloud upload: " + str(_send_frame_to_cloud))
+                show_error_message_to_image("Camera url set.")
                 return response + "Camera path set to " + _camera_url, 200
             else:
                 show_error_message_to_image("Error: Invalid nozzle_cam_url.")
@@ -278,11 +286,11 @@ def getNozzlePosition():
         def do_work():
             log("*** calling do_work ***")
             detection_manager = dm(
-                log, _camera_url, __CLOUD_URL, _send_frame_to_cloud
+                log, _camera_url, __CLOUD_URL, __send_frame_to_cloud
             )
 
             position = detection_manager.recursively_find_nozzle_position(
-                put_frame, __CV_MIN_MATCHES, __CV_TIMEOUT, __CV_UV_TOLERANCE
+                put_frame, __CV_MIN_MATCHES, __CV_TIMEOUT, __detection_tolerance
             )
 
             log("position: " + str(position))

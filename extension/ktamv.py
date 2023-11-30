@@ -14,16 +14,18 @@ class ktamv:
         # Load config values
         self.camera_url = config.get("nozzle_cam_url")
         self.server_url = config.get("server_url")
-        self.speed = config.getfloat("move_speed", 50.0, above=10.0)
+        self.speed = config.getfloat("move_speed", 1800.0, above=10.0)
         self.calib_iterations = config.getint(
             "calib_iterations", 1, minval=1, maxval=25
         )
         self.calib_value = config.getfloat("calib_value", 1.0, above=0.25)
         self.send_frame_to_cloud = config.getboolean("send_frame_to_cloud", False)
+        self.detection_tolerance = config.getint("detection_tolerance", 0, minval=0, maxval=5)
 
         # Initialize variables
         self.mpp = None  # Average mm per pixel
         self.is_calibrated = False  # Is the camera calibrated
+        self.last_nozzle_center_successful = False  # Was the last calibration successful
 
         # List of space coordinates for each calibration point
         self.space_coordinates = []
@@ -60,11 +62,6 @@ class ktamv:
         )
         self.gcode.register_command(
             "KTAMV_GET_OFFSET", self.cmd_GET_OFFSET, desc=self.cmd_GET_OFFSET_help
-        )
-        self.gcode.register_command(
-            "KTAMV_MOVE_TO_ORIGIN",
-            self.cmd_MOVE_TO_ORIGIN,
-            desc=self.cmd_MOVE_TO_ORIGIN_help,
         )
         self.gcode.register_command(
             "KTAMV_SIMPLE_NOZZLE_POSITION",
@@ -126,6 +123,7 @@ class ktamv:
                 "/set_server_cfg",
                 camera_url=_camera_url,
                 send_frame_to_cloud=self.send_frame_to_cloud,
+                detection_tolerance=self.detection_tolerance,
             )
             # gcmd.respond_info("Sent server configuration to server")
             gcmd.respond_info("kTAMV Server response: %s" % str(rr))
@@ -139,19 +137,9 @@ class ktamv:
 
     def cmd_SET_CENTER(self, gcmd):
         self.cp = self.pm.get_raw_position()
-        self.cp = (float(self.cp[0]), float(self.cp[1]))
+        self.cp = (round(float(self.cp[0]),3), round(float(self.cp[1]),3))
         self.gcode.respond_info(
             "Center position set to X:%3f Y:%3f" % (self.cp[0], self.cp[1])
-        )
-
-    cmd_MOVE_TO_ORIGIN_help = ("Sets the center position for offset"
-        + "calculations based on the current toolhead position")
-
-    def cmd_MOVE_TO_ORIGIN(self, gcmd):
-        self.cp = self.pm.get_raw_position()
-        self.cp = (float(self.cp[0]), float(self.cp[1]))
-        self.gcode.respond_info(
-            "Center position set to X:%3f Y:%3f" % self.cp[0], self.cp[1]
         )
 
     cmd_GET_OFFSET_help = (
@@ -167,8 +155,8 @@ class ktamv:
             return
         _pos = self.pm.get_raw_position()
         self.last_calculated_offset = (
-            float(_pos[0]) - self.cp[0],
-            float(_pos[1]) - self.cp[1],
+            round((float(_pos[0]) - self.cp[0]),3),
+            round((float(_pos[1]) - self.cp[1]),3),
         )
 
         self.gcode.respond_info(
@@ -183,6 +171,7 @@ class ktamv:
         ##############################
         # Calibration of the tool
         ##############################
+        self.last_nozzle_center_successful = False
         self._calibrate_nozzle(gcmd)
 
     cmd_SIMPLE_NOZZLE_POSITION_help = (
@@ -262,6 +251,7 @@ class ktamv:
             _xy = self.pm.get_gcode_position()
 
             for i in range(len(calibration_coordinates)):
+                _rr = _xy = None
                 # Move to calibration location and get the nozzle position
                 # If it is not found, skip this calibration point
                 try:
@@ -311,33 +301,35 @@ class ktamv:
             #
             # Finish the calibration loop
             #
-            gcmd.respond_info("Found %s calibration points" % str(len(self.mm_per_pixels)))
+
             # Move back to the center and get coordinates for the center
             gcmd.respond_info("Moving back to starting position")
-            _olduv = _uv  # Last position to get center from inverted move
-            try:
-                _rr, _xy = self.move_relative_and_get_nozzle_position(
-                    -calibration_coordinates[i][0],
-                    -calibration_coordinates[i][1],
-                    gcmd,
-                )
-            except NozzleNotFoundException as e:
-                _rr = None
 
-            # If we did not get a response, indicate it by setting _uv to None
-            if _rr is None:
-                _uv = None
-            else:
-                # Save the new nozzle position as UV 2D coordinates
-                _uv = json.loads(_rr["data"])
+            if _rr is not None:
+                try:
+                    _rr, _xy = self.move_relative_and_get_nozzle_position(
+                        -calibration_coordinates[i][0],
+                        -calibration_coordinates[i][1],
+                        gcmd,
+                    )
+                except NozzleNotFoundException as e:
+                    _rr = None
 
-                # Calculate mm per pixel and save it to a list
-                mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
-                # Save the 3D space coordinates, 2D camera coordinates and mm/px
-                self._save_coordinates_for_matrix(_xy, _uv, mpp)
-                self.gcode.respond_info(
-                    "Calibrated camera center: mm/pixel found: %.4f" % (mpp)
-                )
+                # If we did not get a response, indicate it by setting _uv to None
+                if _rr is None:
+                    _uv = _olduv = None
+                else:
+                    _olduv = _uv  # Last position to get center from inverted move
+                    # Save the new nozzle position as UV 2D coordinates
+                    _uv = json.loads(_rr["data"])
+
+                    # Calculate mm per pixel and save it to a list
+                    mpp = self.getMMperPixel(calibration_coordinates[i], _olduv, _uv)
+                    # Save the 3D space coordinates, 2D camera coordinates and mm/px
+                    self._save_coordinates_for_matrix(_xy, _uv, mpp)
+                    self.gcode.respond_info(
+                        "Calibrated camera center: mm/pixel found: %.4f" % (mpp)
+                    )
 
             #
             # All calibration points are done, calculate the average mm per pixel
@@ -528,6 +520,7 @@ class ktamv:
                 # finally, we're aligned to the center
                 elif _offsets[0] == 0.0 and _offsets[1] == 0.0:
                     self.gcode.respond_info("Calibration to nozzle center complete")
+                    self.last_nozzle_center_successful = True
                     return
 
         except Exception as e:
@@ -653,6 +646,8 @@ class ktamv:
             "is_calibrated": self.is_calibrated,
             "send_frame_to_cloud": self.send_frame_to_cloud,
             "camera_center_coordinates": self.cp,
+            "travel_speed": self.speed,
+            "last_nozzle_center_successful": self.last_nozzle_center_successful,
         }
         return status
 
