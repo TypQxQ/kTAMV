@@ -314,8 +314,8 @@ install_klipper_config() {
             echo -e "nozzle_cam_url: http://localhost/webcam/snapshot?max_delay=0" >> "${dest}"   # Add the address of the webcam stream that will be accessed by the server
             echo -e "server_url: http://localhost:${PORT}" >> "${dest}"    # Add the address of the kTAMV server that will be accessed Klipper
             echo -e "move_speed: 1800" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
-            echo -e "send_frame_to_cloud: ${SEND_IMAGES}" >> "${dest}"   # Add the speed at which the toolhead moves when aligning
-            
+            echo -e "send_frame_to_cloud: ${SEND_IMAGES}" >> "${dest}"   # If true, the images of the nozzle will be sent to the developer
+            echo -e "detection_tolerance: 0" >> "${dest}"   # number of pixels to have as tolerance when detecting the nozzle.
 
             log_info "Added kTAMV configuration to printer.cfg"
             log_important "Please check the configuration in printer.cfg and adjust it as needed"

@@ -42,6 +42,7 @@ nozzle_cam_url: http://localhost/webcam2/snapshot?max_delay=0
 server_url: http://localhost:8085
 move_speed: 1800
 send_frame_to_cloud: false
+detection_tolerance: 0
 ```
 If your nozzle webcamera is on another stream, change that. You can find out what the stream is called in the Mainsail camera configuration. For example, here this is webcam2, so my configuration would be:
 
@@ -54,6 +55,8 @@ Change the `server_url` if you run on another machine or port.
 `move_speed` is the toolhead spped while calibrating.
 
 `send_frame_to_cloud` indicates if you want to contribute to possible future development of AI based detection.
+
+`detection_tolerance` If the nozzle position is within this many pixels when comparing frames, it's considered a match. Only whole numbers are supported.
 
 ## Setting up the server image in Mainsail
 Add a webcam with and configure like in the image:
@@ -73,11 +76,15 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
 2. Home the printer and move the endstop or nozzle over the camera so that it is aproximatley in the middle of the image. You can run the `KTAMV_START_PREVIEW` command to help you orientate.
 2. Run the `KTAMV_CALIB_CAMERA` command to detect the nozzle or endstop. Note that it can have problems with endstops and it's easier to calibrate using a nozzle.
 3. If successfull, run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle or endstop.
-4. Run the `KTAMV_SET_ORIGIN` command to set this as the origin for all other offsets.
+4. Run the `KTAMV_SET_ORIGIN` command to set this as the origin for all other offsets. If a tool is selected, this should not have any XY offsets applied.
 5. Change to another tool and move the nozzle over the camera so that it is aproximatley in the middle of the image. You can run the `KTAMV_START_PREVIEW` command to help you orientate.
 6. Run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle.
 7. Run the `KTAMV_GET_OFFSET` to get the offset from when the first tool or nozzle was in the middle of the image.
 8. Run step 5 - 7 for every tool to get their offset.
+
+## Can it be automated?
+Of course! And here is a macro you can use as a start point:
+[ktamv_automation_example.cfg](ktamv_automation_example.cfg)
 
 ## Debug logs
 The kTAMV server logs in memory and everything can be displayed on it's root path.
