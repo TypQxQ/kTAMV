@@ -14,6 +14,8 @@ It adds the following commands to klipper:
 - `KTAMV_GET_OFFSET`, Get the offset from the current X,Y position to the origin X,Y position. Prints it to console.
 - `KTAMV_MOVE_TO_ORIGIN`, moves the toolhead to the configured center position origin as set with KTAMV_SET_ORIGIN
 - `KTAMV_SIMPLE_NOZZLE_POSITION`, checks if a nozzle is detected in the current nozzle cam image and reports whether it is found. The printer will not move.
+- `KTAMV_START_PREVIEW`, starts the camera preview mode.
+- `KTAMV_STOP_PREVIEW`, stops the camera preview mode.
 
 !!! !!! !!! !!! !!!
 This software is only meant for advanced users!
@@ -68,11 +70,11 @@ Use the printer IP and not localhost or Mainsail will try to connect to the comp
 ## How to run
 
 1. Run the `KTAMV_SEND_SERVER_CFG` command to configure the server.
-2. Home the printer and move the endstop or nozzle over the camera so that it is aproximatley in the middle of the image.
+2. Home the printer and move the endstop or nozzle over the camera so that it is aproximatley in the middle of the image. You can run the `KTAMV_START_PREVIEW` command to help you orientate.
 2. Run the `KTAMV_CALIB_CAMERA` command to detect the nozzle or endstop. Note that it can have problems with endstops and it's easier to calibrate using a nozzle.
 3. If successfull, run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle or endstop.
 4. Run the `KTAMV_SET_ORIGIN` command to set this as the origin for all other offsets.
-5. Change to another too and move the nozzle over the camera so that it is aproximatley in the middle of the image.
+5. Change to another tool and move the nozzle over the camera so that it is aproximatley in the middle of the image. You can run the `KTAMV_START_PREVIEW` command to help you orientate.
 6. Run the `KTAMV_FIND_NOZZLE_CENTER` command to center the nozzle.
 7. Run the `KTAMV_GET_OFFSET` to get the offset from when the first tool or nozzle was in the middle of the image.
 8. Run step 5 - 7 for every tool to get their offset.
