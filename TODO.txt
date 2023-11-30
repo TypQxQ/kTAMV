@@ -1,10 +1,8 @@
 TODO:
 - Important
-    - Stop preview when calibrationg
-    - Command to Start and stop updating with continuous checking the nozzle, 2 times a second or once a second is usefull for finding best light or height.
     - Rewrite Readme wit Copilot and spellcheck.
     - Logo
-    - Move inmmory log to file on srv. maybe
+    - Move inmemory log to file on srv. maybe
 - Less important
 - Trivial
     - Put timers on operations like calibrate camera and get possition.
