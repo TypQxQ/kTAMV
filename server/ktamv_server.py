@@ -23,7 +23,7 @@ _FRAME_HEIGHT = 480
 # FPS to use when running the preview
 __PREVIEW_FPS = 2
 
-# If the nozzle position is within this tolerance, it's considered a match. 1.0 would be 1 pixel. Only whole numbers are supported.
+# If the nozzle position is within this many pixels when comparing frames, it's considered a match. Only whole numbers are supported.
 __detection_tolerance = 0
 # Wheather to update the image at next request
 __update_static_image = True

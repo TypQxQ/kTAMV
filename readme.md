@@ -56,7 +56,7 @@ Change the `server_url` if you run on another machine or port.
 
 `send_frame_to_cloud` indicates if you want to contribute to possible future development of AI based detection.
 
-`detection_tolerance` number of pixels to have as tolerance when detecting the nozzle.
+`detection_tolerance` If the nozzle position is within this many pixels when comparing frames, it's considered a match. Only whole numbers are supported.
 
 ## Setting up the server image in Mainsail
 Add a webcam with and configure like in the image:
