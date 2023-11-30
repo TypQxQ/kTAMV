@@ -20,9 +20,10 @@ class NozzleNotFoundException(Exception):
 ####################################################################################################
 # Set the server's camera path
 ####################################################################################################
-def send_server_cfg(server_url, *args, **kwargs):
-    rr = server_request(server_url + "/set_server_cfg", data=kwargs, method="POST")
-    # TODO: Check if the request was successful
+def send_srv_command(server_url : str, command : str,  **data):
+    rr = server_request(server_url + command, data=data, method="POST")
+    if not rr.status == 200:
+        raise Exception("Server responded with statuscode %s: %s" % (str(rr.status), str(rr.body)))
     return rr.body
 
 
@@ -134,7 +135,7 @@ def get_average_mpp(
 
     try:
         # Save initial mpps for later comparison
-        initial_mpps = mpps
+        initial_mpps = mpps.copy()
 
         # Calculate the average mm per pixel and the standard deviation
         mpps_std_dev, mpp = _get_std_dev_and_mean(mpps)

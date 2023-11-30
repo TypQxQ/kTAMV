@@ -22,8 +22,14 @@ __CV_UV_TOLERANCE = 1
 _FRAME_WIDTH = 640
 _FRAME_HEIGHT = 480
 
+# FPS to use when running the preview
+__PREVIEW_FPS = 2
+
 __update_static_image = True
 __error_message_to_image = ""
+
+# Indicates if preview is running
+__preview_running = False
 
 # Create logs folder if it doesn't exist and configure logging
 if not os.path.exists("./logs"):
@@ -125,11 +131,14 @@ def set_server_cfg():
     show_error_message_to_image("")
     try:
         log("*** calling set_server_cfg ***")
-        # Get the camera path from the JSON object
         camera_url = None
-        
         response = ""
-        # log("request.data: " + str(request.data))
+
+        # Stoping preview if running
+        global __preview_running
+        __preview_running = False
+        
+        # Get the camera path from the JSON object
         try:
             data = json.loads(request.data)
             camera_url = data.get("camera_url")
@@ -242,6 +251,10 @@ def getReqest():
 @app.route("/getNozzlePosition")
 def getNozzlePosition():
     show_error_message_to_image("")
+    # Stoping preview if running
+    global __preview_running
+    __preview_running = False
+
     try:
         log("*** calling getNozzlePosition ***")
         start_time = time.time()  # Get the current time
@@ -268,8 +281,6 @@ def getNozzlePosition():
                 log, _camera_url, __CLOUD_URL, _send_frame_to_cloud
             )
 
-            log("detection_manager: " + str(detection_manager))
-
             position = detection_manager.recursively_find_nozzle_position(
                 put_frame, __CV_MIN_MATCHES, __CV_TIMEOUT, __CV_UV_TOLERANCE
             )
@@ -295,7 +306,6 @@ def getNozzlePosition():
 
             log("*** end of do_work ***")
 
-        # thread = threading.Thread(target=do_work, kwargs={'value': request.args.get('value', 20)})
         thread = threading.Thread(target=do_work)
         thread.start()
 
@@ -305,55 +315,60 @@ def getNozzlePosition():
         show_error_message_to_image("Error: Could not get nozzle position.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
-def drawOnFrame(usedFrame):
-    # Get a string with the current date and time
-    current_datetime = datetime.datetime.now()
-    current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
-
-    # Draw the date on the image
-    usedFrame: Image.Image = drawTextOnFrame(
-        usedFrame, "Updated: " + current_datetime_str, row=1
-    )
-    
-    if _camera_url is None:
-        usedFrame = drawTextOnFrame(usedFrame, "kTAMV Server Configuration not recieved.", row=2)
-    elif __processed_frame_as_image is None:
-        usedFrame = drawTextOnFrame(usedFrame, "No image recieved since start.", row=2)
-    elif _transformMatrix is None:
-        usedFrame = drawTextOnFrame(usedFrame, "Camera not calibrated.", row=2)
-
-    if __error_message_to_image != "":
-        usedFrame = drawTextOnFrame(usedFrame, __error_message_to_image, row=3)
-                
-    return usedFrame
-
-
-
-
-def drawTextOnFrame(usedFrame, text, row=1 ):
+@app.route("/preview", methods=["POST"])
+def preview():
+    show_error_message_to_image("")
     try:
-        FONT_SIZE = 28
-        FONT_COLOR = (255, 255, 255)
-        FIRST_ROW_START = (10, 10)
+        log("*** calling preview ***")
+        start_time = time.time()  # Get the current time
+        global __preview_running
 
-        # Create a draw object
-        draw = ImageDraw.Draw(usedFrame)
+        try:
+            data = json.loads(request.data)
+            action = data.get("action")
+        except json.JSONDecodeError:
+            show_error_message_to_image("Error: Could not get action.")
+            return "JSON Decode Error", 400
 
-        # Choose a font
-        font_path = fm.findfont(fm.FontProperties(family="arial"))
-        font = ImageFont.truetype(font_path, FONT_SIZE)
+        def do_preview():
+            log("*** calling do_preview ***")
+            # Do not send images from preview to the cloud
+            detection_manager = dm(
+                log, _camera_url, cloud_url = "", send_to_cloud = False
+            )
+            
+            while __preview_running:
+                dm.get_preview_frame(detection_manager, put_frame)
+                
 
-        start_point = (FIRST_ROW_START[0], FIRST_ROW_START[1] + (row - 1) * (FONT_SIZE + 10) )
-        
-        # Draw the date on the image
-        draw.rectangle((start_point[0]-5, start_point[1]-5, start_point[0] + 630, start_point[1] + FONT_SIZE + 10), fill=(0,0,0))
-        draw.text(start_point, text, font=font, fill=FONT_COLOR )
+            log("*** end of do_preview ***")
 
-        return usedFrame
+            # Wait for 1s/FPS for a maximum FPS.
+            # This is to avoid overloading the server
+            time.sleep(1 / __PREVIEW_FPS)
+
+        # Handle the action
+        if action == "stop":
+            __preview_running = False
+            return "Stopped preview.", 200
+        elif action == "start":
+            if _camera_url is None:
+                log("*** end of preview - Camera URL not set ***<br>")
+                return "Camera URL not set", 502
+            else:
+                __preview_running = True
+                thread = threading.Thread(target=do_preview)
+                thread.start()
+                return "Started preview.", 200
+        else:
+            return "Invalid action.", 400
     except Exception as e:
+        show_error_message_to_image("Error: Could not do preview.")
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 
-
+###
+# Returns the image to the web browser to act as a webcam
+###
 @app.route("/image")
 def image():
     try:
@@ -388,6 +403,60 @@ def image():
 
         # Send the image to the web browser
         return send_file(processed_frame_file, mimetype="image/jpeg")
+    except Exception as e:
+        log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
+
+
+def drawOnFrame(usedFrame):
+    # Get a string with the current date and time
+    current_datetime = datetime.datetime.now()
+    current_datetime_str = current_datetime.strftime("%Y-%m-%d %H:%M:%S.%f")
+
+    # Draw the date on the image
+    usedFrame: Image.Image = drawTextOnFrame(
+        usedFrame, "Updated: " + current_datetime_str, row=1
+    )
+    
+    if _camera_url is None:
+        usedFrame = drawTextOnFrame(usedFrame, "kTAMV Server Configuration not recieved.", row=2)
+    elif __processed_frame_as_image is None:
+        usedFrame = drawTextOnFrame(usedFrame, "No image recieved since start.", row=2)
+    elif _transformMatrix is None:
+        usedFrame = drawTextOnFrame(usedFrame, "Camera not calibrated.", row=2)
+
+    if __error_message_to_image != "":
+        usedFrame = drawTextOnFrame(usedFrame, __error_message_to_image, row=3)
+        
+    if __preview_running:
+        usedFrame = drawTextOnFrame(usedFrame, "Preview running.", row=-1, row_width=270)
+                
+    return usedFrame
+
+def drawTextOnFrame(usedFrame, text, row=1, row_width=640):
+    try:
+        FONT_SIZE = 28
+        FONT_COLOR = (255, 255, 255)
+        FIRST_ROW_START = (10, 10)
+
+        # Create a draw object
+        draw = ImageDraw.Draw(usedFrame)
+
+        # Choose a font
+        font_path = fm.findfont(fm.FontProperties(family="arial"))
+        font = ImageFont.truetype(font_path, FONT_SIZE)
+
+        if row > 0:
+            # Row from top
+            start_point = (FIRST_ROW_START[0], FIRST_ROW_START[1] + (row - 1) * (FONT_SIZE + 10) )
+        else:
+            # Row from bottom
+            start_point = (FIRST_ROW_START[0], usedFrame.height - (abs(row) * (FONT_SIZE + 10) + FIRST_ROW_START[1]) )
+        
+        # Draw the date on the image
+        draw.rectangle((start_point[0]-5, start_point[1]-5, row_width - start_point[0], start_point[1] + FONT_SIZE + 10), fill=(0,0,0))
+        draw.text(start_point, text, font=font, fill=FONT_COLOR )
+
+        return usedFrame
     except Exception as e:
         log("Error: " + str(e) + "<br>" + str(traceback.format_exc()))
 

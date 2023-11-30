@@ -72,10 +72,24 @@ class Ktamv_Server_Detection_Manager:
                 pos_matches = 0
 
             last_pos = pos
+            # Wait 0.3 to leave time for the webcam server to catch up
+            # Crowsnest usually caches 0.3 seconds of frames
+            time.sleep(0.3)
+
         self.log("recursively_find_nozzle_position found: %s" % str(last_pos))
         self.log('*** exiting recursively_find_nozzle_position')
         return pos
 
+    def get_preview_frame(self, put_frame_func):
+        # self.log('*** calling get_preview_frame')
+
+        frame = self.__io.get_single_frame()
+        _, processed_frame = self.nozzleDetection(frame)
+        if processed_frame is not None:
+            put_frame_func(processed_frame)
+
+        # self.log('*** exiting get_preview_frame')
+        return
 
 # ----------------- TAMV Nozzle Detection as tested in ktamv_cv -----------------
 
