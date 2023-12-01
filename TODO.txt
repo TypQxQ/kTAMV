@@ -1,6 +1,6 @@
 TODO:
 - Important
-    - Add variable for wait after movement, add as pause in server before doing calibration
+    - Add variable for dwell after movement, add as pause in server before doing calibration
     - Rewrite Readme wit Copilot and spellcheck.
     - Logo
     - Move inmemory log to file on srv. maybe
