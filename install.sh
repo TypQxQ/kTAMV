@@ -65,7 +65,7 @@ SEND_IMAGES="false"
 # Jinja2 is used by the Flask webserver
 # libatlas is used by NumPy
 # matplotlib is to find usable fonts
-PKGLIST="python3 python3-pip virtualenv curl python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2"
+PKGLIST="python3 python3-pip virtualenv curl python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2 python3-requests"
 
 
 #
