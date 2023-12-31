@@ -29,12 +29,6 @@ MOONRAKER_HOME="${HOME}/moonraker"
 # This is where Klipper config files are stored
 KLIPPER_CONFIG_HOME="${HOME}/printer_data/config"
 
-# This is where Klipper config files are stored
-KLIPPER_ENV="${HOME}/klippy-env"
-
-# This is where Klipper logs are stored
-KLIPPER_LOGS_HOME="${HOME}/printer_data/logs"
-
 # This is where Klipper config files were stored before the 0.10.0 release
 OLD_KLIPPER_CONFIG_HOME="${HOME}/klipper_config"
 
@@ -65,6 +59,7 @@ SEND_IMAGES="false"
 # Jinja2 is used by the Flask webserver
 # libatlas is used by NumPy
 # matplotlib is to find usable fonts
+# requests is used to make HTTP requests, it's used to communicate between the server and the extension
 PKGLIST="python3 python3-pip virtualenv curl python3-matplotlib python3-numpy python3-opencv python3-pil python3-flask libatlas-base-dev python3-waitress python3-jinja2 python3-requests"
 
 
@@ -105,26 +100,6 @@ log_blank()
     echo ""
 }
 
-#
-# Logic to create / update our virtual py env
-#
-install_or_update_python_env()
-{
-    log_header "Checking Python Virtual Environment For kTAMV..."
-    # If the service is already running, we can't recreate the virtual env
-    # so if it exists, don't try to create it.
-    if [ -d $KTAMV_ENV ]; then
-        log_error "Virtual environment found at ${KTAMV_ENV}, skipping creation."
-        # This virtual env refresh fails on some devices when the service is already running, so skip it for now.
-        # This only refreshes the virtual environment package anyways, so it's not super needed.
-        #log_info "Virtual environment found, updating to the latest version of python."
-        #python3 -m venv --upgrade "${KTAMV_ENV}"
-    else
-        log_info "No virtual environment found, creating one now at ${KTAMV_ENV}."
-        mkdir -p "${KTAMV_ENV}"
-        virtualenv -p /usr/bin/python3 --system-site-packages "${KTAMV_ENV}"
-    fi
-}
 
 #
 # Logic to make sure all of our required system packages are installed.
@@ -161,7 +136,7 @@ install_or_update_system_dependencies()
 #
 
 #
-# Logic to ensure the user isn't trying to use this script to setup in OctoPrint.
+# Logic to ensure the user isn't trying to use this script to setup in kTAMV.
 #
 check_for_ktamv()
 {
@@ -223,11 +198,6 @@ verify_home_dirs() {
 
     if [ ! -d "${MOONRAKER_HOME}" ]; then
         log_error "Moonraker home directory (${MOONRAKER_HOME}) not found. Use '-m <dir>' option to override"
-        exit -1
-    fi
-
-    if [ ! -d "${KLIPPER_ENV}" ]; then
-        log_error "Klipper virtual evniroment directory (${KLIPPER_ENV}) not found. Use '-j <dir>' option to override"
         exit -1
     fi
 
@@ -474,7 +444,7 @@ log_blank
 log_blank
 log_important "kTAMV is used to align your printer's toolheads using machine vision."
 log_blank
-log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_config_dir>] [-j <klipper_enviroment_dir>]"
+log_info "Usage: $0 [-p <server_port>] [-k <klipper_home_dir>] [-c <klipper_config_dir>]"
 log_info "[-m <moonraker_home_dir>] [-s <system_dir>]"
 log_blank
 log_blank
@@ -539,7 +509,6 @@ while getopts "k:c:m:ids" arg; do
         k) KLIPPER_HOME=${OPTARG};;
         m) MOONRAKER_HOME=${OPTARG};;
         c) KLIPPER_CONFIG_HOME=${OPTARG};;
-        j) KLIPPER_ENV=${OPTARG};;
         s) SYSTEMDDIR=${OPTARG};;
         p) PORT=${OPTARG};;
     esac
@@ -570,9 +539,6 @@ check_klipper
 
 # Check that the home directories are valid
 verify_home_dirs
-
-# Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
-install_or_update_python_env
 
 # Link the extension to Klipper
 link_extension
