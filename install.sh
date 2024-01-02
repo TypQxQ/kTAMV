@@ -100,6 +100,26 @@ log_blank()
     echo ""
 }
 
+#
+# Logic to create / update our virtual py env
+#
+install_or_update_python_env()
+{
+    log_header "Checking Python Virtual Environment For kTAMV..."
+    # If the service is already running, we can't recreate the virtual env
+    # so if it exists, don't try to create it.
+    if [ -d $KTAMV_ENV ]; then
+        log_error "Virtual environment found at ${KTAMV_ENV}, skipping creation."
+        # This virtual env refresh fails on some devices when the service is already running, so skip it for now.
+        # This only refreshes the virtual environment package anyways, so it's not super needed.
+        #log_info "Virtual environment found, updating to the latest version of python."
+        #python3 -m venv --upgrade "${KTAMV_ENV}"
+    else
+        log_info "No virtual environment found, creating one now at ${KTAMV_ENV}."
+        mkdir -p "${KTAMV_ENV}"
+        virtualenv -p /usr/bin/python3 --system-site-packages "${KTAMV_ENV}"
+    fi
+}
 
 #
 # Logic to make sure all of our required system packages are installed.
@@ -539,6 +559,9 @@ check_klipper
 
 # Check that the home directories are valid
 verify_home_dirs
+
+# Now make sure the virtual env exists, is updated, and all of our currently required PY packages are updated.
+install_or_update_python_env
 
 # Link the extension to Klipper
 link_extension
