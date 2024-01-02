@@ -1,10 +1,34 @@
-# kTAMV - Klipper Tool Alignment (using) Machine Vision
+<p align="center">
+  <img src="doc/mainsail_main.jpg?raw=true" alt='screenshot of UI' width='800'>
+  <h1 align="center">kTAMV - Klipper Tool Alignment (using) Machine Vision</h1>
+</p>
 
-This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle from inside Klipper.
+This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle from inside [Klipper](https://github.com/Klipper3d/klipper).
+<p align="center">
+  <a aria-label="Downloads" href="https://github.com/TypQxQ/kTAMV/releases">
+    <img src="https://img.shields.io/github/release/TypQxQ/kTAMV?display_name=tag&style=flat-square">
+  </a>
+  <a aria-label="Stars" href="https://github.com/TypQxQ/kTAMV/stargazers">
+    <img src="https://img.shields.io/github/stars/TypQxQ/kTAMV?style=flat-square">
+  </a>
+  <a aria-label="Forks" href="https://github.com/TypQxQ/kTAMV/network/members">
+    <img src="https://img.shields.io/github/forks/TypQxQ/kTAMV?style=flat-square">
+  </a>
+  <a aria-label="License" href="https://github.com/TypQxQ/kTAMV/blob/master/LICENSE">
+    <img src="https://img.shields.io/github/license/TypQxQ/kTAMV?style=flat-square">
+  </a>
+    <a aria-label="License" href="https://github.com/TypQxQ/kTAMV/blob/master/LICENSE">
+    <img src="https://img.shields.io/github/license/TypQxQ/kTAMV?style=flat-square">
+  </a>
+  <a href="https://universe.roboflow.com/nozzle-detection/nozzle-detection-bdk8s">
+    <img src="https://app.roboflow.com/images/download-dataset-badge.svg"></img>
+  </a>
+  <a href="https://universe.roboflow.com/nozzle-detection/nozzle-detection-bdk8s/model/">
+    <img src="https://app.roboflow.com/images/try-model-badge.svg"></img>
+  </a>
+</p>
 
 It has one part that runs as a part of Klipper, adding the necesary commands and integration, and one part that does all the io and cpu intensive calculations as a webserver, localy or on any computer for true multithreading. 
-
-<img src="doc/mainsail_main.jpg" width="800">
 
 It adds the following commands to klipper:
 
