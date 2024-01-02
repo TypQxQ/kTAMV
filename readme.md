@@ -1,6 +1,6 @@
 <p align="center">
-  <img src="doc/mainsail_main.jpg?raw=true" alt='screenshot of UI' width='800'>
   <h1 align="center">kTAMV - Klipper Tool Alignment (using) Machine Vision</h1>
+  <img src="doc/mainsail_main.jpg?raw=true" alt='screenshot of UI' width='800'>
 </p>
 
 This allows X and Y allignment betwween multiple tools on a 3D printer using a camera that points up towards the nozzle from inside [Klipper](https://github.com/Klipper3d/klipper).
