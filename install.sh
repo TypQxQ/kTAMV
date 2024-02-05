@@ -274,13 +274,15 @@ install_update_manager() {
         if [ "${already_included}" -eq 0 ]; then
             echo "" >> "${dest}"    # Add a blank line
             echo "" >> "${dest}"    # Add a blank line
-            echo -e "[update_manager ktamv]]" >> "${dest}"    # Add the section header
+            echo -e "[update_manager ktamv\]" >> "${dest}"    # Add the section header
             echo -e "type: git_repo" >> "${dest}"
             echo -e "path: ~/kTAMV" >> "${dest}"
             echo -e "origin: https://github.com/TypQxQ/kTAMV.git" >> "${dest}"
             echo -e "primary_branch: main" >> "${dest}"
             echo -e "install_script: install.sh" >> "${dest}"
             echo -e "managed_services: klipper" >> "${dest}"
+
+            restart_moonraker
         else
             log_error "[update_manager ktamv] already exists in moonraker.conf - skipping installing it there"
         fi
