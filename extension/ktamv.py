@@ -1,12 +1,28 @@
+'''
+This module contains the implementation of the `ktamv` class which is responsible
+for controlling the kTAMV (klipper Toolhead-Assisted Manual Vision) system.
+The kTAMV system is used for calibrating the movement of the active nozzle and
+finding the center of the nozzle in the camera view.
+
+The `ktamv` class provides methods for calibrating the camera, finding the nozzle center,
+setting the origin, getting the offset, and sending server configuration commands.
+
+Note: This module requires the `ktamv_utl` module for utility functions.
+
+'''
+import logging
+import json
 from math import sqrt
 from . import ktamv_utl as utl
 from .ktamv_utl import NozzleNotFoundException
-import logging
-import json
 
-
-
-class ktamv:
+class ktamv:    # pylint: disable=invalid-name
+    '''
+    The `ktamv` class is responsible for controlling the 
+    kTAMV (klipper Toolhead-Assisted Manual Vision) system.
+    The kTAMV system is used for calibrating the movement of 
+    the active nozzle and finding the center of the nozzle in the camera view.
+    '''
     __FRAME_WIDTH = 640
     __FRAME_HEIGHT = 480
 
@@ -35,7 +51,7 @@ class ktamv:
         self.mm_per_pixels = []  # List of mm per pixel for each calibration point
         self.cp = None  # Center position used for offset calculations
         self.last_calculated_offset = [0, 0]
-        
+
         # Load used objects.
         self.config = config
         self.printer = config.get_printer()
@@ -90,14 +106,14 @@ class ktamv:
 
     def cmd_START_PREVIEW(self, gcmd):
         self._preview(gcmd, action="start")
-            
+
     cmd_STOP_PREVIEW_help = (
         "Send the server command to stop the preview"
     )
 
     def cmd_STOP_PREVIEW(self, gcmd):
         self._preview(gcmd, action="stop")
-            
+
     def _preview(self, gcmd, action="start"):
         try:
             rr = utl.send_srv_command(
@@ -129,13 +145,13 @@ class ktamv:
             gcmd.respond_info("kTAMV Server response: %s" % str(rr))
         except Exception as e:
             raise self.gcode.error(
-                "Failed to send server configuration to server, got error: %s" % str(e)
+                f"Failed to send server configuration to server, got error: {str(e)}"
             )
 
     cmd_SET_CENTER_help = ("Saves the center position for offset calculations"
         + "based on the current toolhead position.")
 
-    def cmd_SET_CENTER(self, gcmd):
+    def cmd_SET_CENTER(self, gcmd): # pylint: disable=unused-argument
         self.cp = self.pm.get_raw_position()
         self.cp = (round(float(self.cp[0]),3), round(float(self.cp[1]),3))
         self.gcode.respond_info(
