@@ -83,15 +83,17 @@ Change the `server_url` if you run on another machine or port.
 `detection_tolerance` If the nozzle position is within this many pixels when comparing frames, it's considered a match. Only whole numbers are supported.
 
 ## Setting up the server image in Mainsail
-Add a webcam with and configure like in the image:
+
+Add a webcam and configure it like in the image:
 - Any name you like
 - URL Stream: Leave Empty
-- URL Snapshot: pointing to your server ip.
+- URL Snapshot: pointing to your server ip on http, not https with the port number it runs on, 8085 as standard.
 - Service: Adaptive MJPEG-Streamer
-- Target FPS: 4 is enough.
+- Target FPS: 4 is enough, will ask the server for a new frame 4 times a second.
 Use the printer IP and not localhost or Mainsail will try to connect to the computer you run the webbrowser on.
 
 <img src="doc/mainsail-ktamv-cam-settings-example.jpg" width="689">
+
 
 ----
 ## How to run
